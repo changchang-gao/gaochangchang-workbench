@@ -107,6 +107,7 @@
       border: 1px solid #f3e8e2;
       border-radius: 0.75rem; outline: none; padding: 0.625rem 1rem;
       transition: border-color 0.15s, box-shadow 0.15s;
+      min-width: 0;
     }
     input:focus, textarea:focus {
       border-color: var(--accent-pink);
@@ -121,6 +122,18 @@
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #f3d6ce; border-radius: 3px; }
+
+    /* 手机端侧边栏 */
+    @media (max-width: 768px) {
+      aside { width: 3.5rem !important; padding-left: 0.375rem !important; padding-right: 0.375rem !important; }
+      aside .sidebar-item { padding-left: 0.5rem; padding-right: 0.5rem; justify-content: center; }
+      aside .icon-box { width: 2rem; height: 2rem; }
+      main { padding: 0.75rem; }
+      h1#page-title { font-size: 1.25rem; line-height: 1.3; }
+      .nav-date { font-size: 0.75rem; padding: 0.375rem 0.5rem; }
+      header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+      .calendar-day { width: 1.9rem; height: 1.9rem; font-size: 0.75rem; }
+    }
 
     .toast {
       position: fixed; top: 1rem; right: 1rem; z-index: 9999;
@@ -196,57 +209,58 @@
   <div id="app-page" style="display:none" class="w-full h-full flex">
 
     <!-- 左侧导航 -->
-    <aside class="w-20 md:w-56 h-full flex flex-col py-6 px-3 md:px-5 border-r border-[#f3e8e2] bg-white/60 backdrop-blur-sm shrink-0">
-      <div class="flex flex-col items-center md:items-start mb-8">
-        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-pink-200 to-rose-300 flex items-center justify-center text-white text-xl font-bold shadow-md">盼</div>
+    <aside class="w-14 md:w-56 h-full flex flex-col py-4 md:py-6 px-1.5 md:px-5 border-r border-[#f3e8e2] bg-white/60 backdrop-blur-sm shrink-0">
+      <div class="flex flex-col items-center md:items-start mb-6 md:mb-8">
+        <div class="w-9 h-9 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-pink-200 to-rose-300 flex items-center justify-center text-white text-base md:text-xl font-bold shadow-md">盼</div>
         <div class="hidden md:block mt-3">
           <div class="font-bold text-lg text-[#4a3f3a]">高盼专属工作台</div>
           <div class="text-xs text-[#8c7e75]">温柔坚持，复利成长</div>
         </div>
       </div>
 
-      <nav class="flex-1 space-y-2 overflow-y-auto">
-        <div class="sidebar-item active flex items-center gap-3 px-3 py-3 rounded-xl" data-view="home" onclick="switchView('home')">
-          <div class="icon-box w-9 h-9 rounded-lg flex items-center justify-center text-lg">🏠</div>
+      <nav class="flex-1 space-y-1 md:space-y-2 overflow-y-auto">
+        <div class="sidebar-item active flex items-center gap-3 px-1.5 md:px-3 py-2.5 md:py-3 rounded-xl" data-view="home" onclick="switchView('home')">
+          <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">🏠</div>
           <span class="hidden md:block font-medium">首页</span>
         </div>
-        <div class="sidebar-item flex items-center gap-3 px-3 py-3 rounded-xl" data-view="memo" onclick="switchView('memo')">
-          <div class="icon-box w-9 h-9 rounded-lg flex items-center justify-center text-lg">📝</div>
+        <div class="sidebar-item flex items-center gap-3 px-1.5 md:px-3 py-2.5 md:py-3 rounded-xl" data-view="memo" onclick="switchView('memo')">
+          <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">📝</div>
           <span class="hidden md:block font-medium">备忘录</span>
         </div>
-        <div class="sidebar-item flex items-center gap-3 px-3 py-3 rounded-xl" data-view="daily" onclick="switchView('daily')">
-          <div class="icon-box w-9 h-9 rounded-lg flex items-center justify-center text-lg">🧒</div>
+        <div class="sidebar-item flex items-center gap-3 px-1.5 md:px-3 py-2.5 md:py-3 rounded-xl" data-view="daily" onclick="switchView('daily')">
+          <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">🧒</div>
           <span class="hidden md:block font-medium">七宝每日任务</span>
         </div>
-        <div class="sidebar-item flex items-center gap-3 px-3 py-3 rounded-xl" data-view="swim" onclick="switchView('swim')">
-          <div class="icon-box w-9 h-9 rounded-lg flex items-center justify-center text-lg">🏊</div>
+        <div class="sidebar-item flex items-center gap-3 px-1.5 md:px-3 py-2.5 md:py-3 rounded-xl" data-view="swim" onclick="switchView('swim')">
+          <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">🏊</div>
           <span class="hidden md:block font-medium">游泳练习</span>
         </div>
-        <div class="sidebar-item flex items-center gap-3 px-3 py-3 rounded-xl" data-view="plan" onclick="switchView('plan')">
-          <div class="icon-box w-9 h-9 rounded-lg flex items-center justify-center text-lg">🚀</div>
+        <div class="sidebar-item flex items-center gap-3 px-1.5 md:px-3 py-2.5 md:py-3 rounded-xl" data-view="plan" onclick="switchView('plan')">
+          <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">🚀</div>
           <span class="hidden md:block font-medium">未来计划</span>
         </div>
-        <div class="sidebar-item flex items-center gap-3 px-3 py-3 rounded-xl" data-view="settings" onclick="switchView('settings')">
-          <div class="icon-box w-9 h-9 rounded-lg flex items-center justify-center text-lg">⚙️</div>
+        <div class="sidebar-item flex items-center gap-3 px-1.5 md:px-3 py-2.5 md:py-3 rounded-xl" data-view="settings" onclick="switchView('settings')">
+          <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">⚙️</div>
           <span class="hidden md:block font-medium">设置</span>
         </div>
       </nav>
 
       <div class="mt-auto pt-4">
         <button onclick="handleLogout()" class="w-full text-[10px] md:text-xs text-[#8c7e75] hover:text-[#ff5c7f] text-center md:text-left transition-colors border-none bg-transparent cursor-pointer">
-          退出登录
+          <span class="hidden md:inline">退出登录</span>
+          <span class="md:hidden">↩</span>
         </button>
       </div>
     </aside>
 
     <!-- 主内容区 -->
-    <main class="flex-1 h-full overflow-y-auto p-4 md:p-8 relative">
-      <header class="flex items-center justify-between mb-6">
-        <div>
-          <h1 id="page-title" class="text-2xl md:text-3xl font-bold text-[#4a3f3a]">欢迎回来，高盼 🌸</h1>
-          <p id="page-subtitle" class="text-sm text-[#8c7e75] mt-1">哪怕今天只完成了一件小事，也值得给自己一个拥抱。</p>
+    <main class="flex-1 h-full overflow-y-auto p-3 md:p-8 relative min-w-0">
+      <header class="flex flex-col md:flex-row md:items-center md:justify-between mb-4 md:mb-6 gap-2 md:gap-0">
+        <div class="min-w-0">
+          <h1 id="page-title" class="text-xl md:text-3xl font-bold text-[#4a3f3a] truncate">欢迎回来，高盼 🌸</h1>
+          <p id="page-subtitle" class="text-xs md:text-sm text-[#8c7e75] mt-0.5 md:mt-1 truncate">哪怕今天只完成了一件小事，也值得给自己一个拥抱。</p>
         </div>
-        <div class="nav-date px-4 py-2 text-sm font-medium" id="top-date"></div>
+        <div class="nav-date px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm font-medium self-start md:self-auto" id="top-date"></div>
       </header>
       <div id="view-container" class="fade-in"></div>
     </main>
@@ -535,43 +549,43 @@
       for (var s = 0; s < swim.length; s++) { swimTotal += parseFloat(swim[s].duration) || 0; }
 
       container.innerHTML =
-        '<div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">' +
-          '<div class="card p-6 text-center">' +
-            '<div class="text-3xl font-bold text-[#2e8b6b] mb-1">' + completedMemos + '</div>' +
-            '<div class="text-sm text-[#8c7e75]">已完成备忘</div>' +
+        '<div class="grid grid-cols-3 gap-2 md:gap-5 mb-6 md:mb-8">' +
+          '<div class="card p-3 md:p-6 text-center">' +
+            '<div class="text-xl md:text-3xl font-bold text-[#2e8b6b] mb-1">' + completedMemos + '</div>' +
+            '<div class="text-[10px] md:text-sm text-[#8c7e75]">已完成备忘</div>' +
           '</div>' +
-          '<div class="card p-6 text-center">' +
-            '<div class="text-3xl font-bold text-[#2563eb] mb-1">' + (memos.length - completedMemos) + '</div>' +
-            '<div class="text-sm text-[#8c7e75]">待办备忘</div>' +
+          '<div class="card p-3 md:p-6 text-center">' +
+            '<div class="text-xl md:text-3xl font-bold text-[#2563eb] mb-1">' + (memos.length - completedMemos) + '</div>' +
+            '<div class="text-[10px] md:text-sm text-[#8c7e75]">待办备忘</div>' +
           '</div>' +
-          '<div class="card p-6 text-center">' +
-            '<div class="text-3xl font-bold text-[#b45309] mb-1">' + planProgress + '%</div>' +
-            '<div class="text-sm text-[#8c7e75]">未来计划进度</div>' +
-          '</div>' +
-        '</div>' +
-
-        '<div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">' +
-          '<div class="card p-5 cursor-pointer" onclick="switchView(\'memo\')">' +
-            '<div class="flex items-center gap-3 mb-2"><div class="w-10 h-10 rounded-full bg-[#d6f5e6] flex items-center justify-center text-lg">📝</div><div class="font-bold text-lg">备忘录</div></div>' +
-            '<div class="text-sm text-[#8c7e75]">记录零散小事 · ' + memos.length + ' 条</div>' +
-          '</div>' +
-          '<div class="card p-5 cursor-pointer" onclick="switchView(\'daily\')">' +
-            '<div class="flex items-center gap-3 mb-2"><div class="w-10 h-10 rounded-full bg-[#dbeafe] flex items-center justify-center text-lg">🧒</div><div class="font-bold text-lg">七宝每日任务</div></div>' +
-            '<div class="text-sm text-[#8c7e75]">今日待完成 · 查看日历</div>' +
-          '</div>' +
-          '<div class="card p-5 cursor-pointer" onclick="switchView(\'swim\')">' +
-            '<div class="flex items-center gap-3 mb-2"><div class="w-10 h-10 rounded-full bg-[#fef3c7] flex items-center justify-center text-lg">🏊</div><div class="font-bold text-lg">游泳练习</div></div>' +
-            '<div class="text-sm text-[#8c7e75]">累计时长 · ' + swimTotal + ' 分钟</div>' +
-          '</div>' +
-          '<div class="card p-5 cursor-pointer" onclick="switchView(\'plan\')">' +
-            '<div class="flex items-center gap-3 mb-2"><div class="w-10 h-10 rounded-full bg-[#ede9fe] flex items-center justify-center text-lg">🚀</div><div class="font-bold text-lg">未来计划</div></div>' +
-            '<div class="text-sm text-[#8c7e75]">进行中的计划 · ' + plans.length + ' 项</div>' +
+          '<div class="card p-3 md:p-6 text-center">' +
+            '<div class="text-xl md:text-3xl font-bold text-[#b45309] mb-1">' + planProgress + '%</div>' +
+            '<div class="text-[10px] md:text-sm text-[#8c7e75]">未来计划进度</div>' +
           '</div>' +
         '</div>' +
 
-        '<div class="card p-6">' +
-          '<div class="flex items-center gap-2 mb-3 text-[#ff5c7f] font-bold"><span>🌸</span> 今日灵感</div>' +
-          '<p class="text-[#4a3f3a] leading-relaxed">"每一小步都是成长，今天的你也已经很棒了。"</p>' +
+        '<div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-5 mb-6 md:mb-8">' +
+          '<div class="card p-4 md:p-5 cursor-pointer" onclick="switchView(\'memo\')">' +
+            '<div class="flex items-center gap-2 md:gap-3 mb-2"><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#d6f5e6] flex items-center justify-center text-base md:text-lg">📝</div><div class="font-bold text-base md:text-lg">备忘录</div></div>' +
+            '<div class="text-xs md:text-sm text-[#8c7e75]">记录零散小事 · ' + memos.length + ' 条</div>' +
+          '</div>' +
+          '<div class="card p-4 md:p-5 cursor-pointer" onclick="switchView(\'daily\')">' +
+            '<div class="flex items-center gap-2 md:gap-3 mb-2"><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#dbeafe] flex items-center justify-center text-base md:text-lg">🧒</div><div class="font-bold text-base md:text-lg">七宝每日任务</div></div>' +
+            '<div class="text-xs md:text-sm text-[#8c7e75]">今日待完成 · 查看日历</div>' +
+          '</div>' +
+          '<div class="card p-4 md:p-5 cursor-pointer" onclick="switchView(\'swim\')">' +
+            '<div class="flex items-center gap-2 md:gap-3 mb-2"><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#fef3c7] flex items-center justify-center text-base md:text-lg">🏊</div><div class="font-bold text-base md:text-lg">游泳练习</div></div>' +
+            '<div class="text-xs md:text-sm text-[#8c7e75]">累计时长 · ' + swimTotal + ' 分钟</div>' +
+          '</div>' +
+          '<div class="card p-4 md:p-5 cursor-pointer" onclick="switchView(\'plan\')">' +
+            '<div class="flex items-center gap-2 md:gap-3 mb-2"><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#ede9fe] flex items-center justify-center text-base md:text-lg">🚀</div><div class="font-bold text-base md:text-lg">未来计划</div></div>' +
+            '<div class="text-xs md:text-sm text-[#8c7e75]">进行中的计划 · ' + plans.length + ' 项</div>' +
+          '</div>' +
+        '</div>' +
+
+        '<div class="card p-4 md:p-6">' +
+          '<div class="flex items-center gap-2 mb-3 text-[#ff5c7f] font-bold text-sm md:text-base"><span>🌸</span> 今日灵感</div>' +
+          '<p class="text-[#4a3f3a] text-sm md:text-base leading-relaxed">"每一小步都是成长，今天的你也已经很棒了。"</p>' +
         '</div>';
     }
 
@@ -586,22 +600,22 @@
       var memos = result.data || [];
       var html = '';
 
-      html += '<div class="card p-5 mb-6"><div class="flex gap-3">' +
+      html += '<div class="card p-4 md:p-5 mb-6"><div class="flex flex-col md:flex-row gap-2 md:gap-3">' +
         '<input id="memo-input" type="text" placeholder="记点什么..." class="flex-1" onkeydown="if(event.key===\'Enter\') addMemo()" />' +
-        '<button class="btn-primary px-6 py-2.5" onclick="addMemo()">添加</button>' +
+        '<button class="btn-primary px-5 md:px-6 py-2 md:py-2.5 text-sm md:text-base" onclick="addMemo()">添加</button>' +
       '</div></div>';
 
       html += '<div class="space-y-3">';
       if (memos.length) {
         for (var i = 0; i < memos.length; i++) {
           var m = memos[i];
-          html += '<div class="card p-4 flex items-start gap-3">' +
+          html += '<div class="card p-3 md:p-4 flex items-start gap-2 md:gap-3">' +
             '<input type="checkbox" class="checkbox-pink mt-1" ' + (m.completed ? 'checked' : '') + ' onchange="toggleMemo(\'' + m.id + '\', ' + m.completed + ')">' +
-            '<div class="flex-1 ' + (m.completed ? 'completed-line' : '') + '">' +
-              '<div class="font-medium">' + escapeHtml(m.content) + '</div>' +
-              '<div class="text-xs text-[#8c7e75] mt-1">' + (m.completed ? '已完成 · ' + m.completed_at : '创建于 ' + m.created_at) + '</div>' +
+            '<div class="flex-1 min-w-0 ' + (m.completed ? 'completed-line' : '') + '">' +
+              '<div class="font-medium text-sm md:text-base" style="overflow-wrap:break-word">' + escapeHtml(m.content) + '</div>' +
+              '<div class="text-[10px] md:text-xs text-[#8c7e75] mt-1">' + (m.completed ? '已完成 · ' + m.completed_at : '创建于 ' + m.created_at) + '</div>' +
             '</div>' +
-            '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-sm border-none bg-transparent cursor-pointer" onclick="deleteMemo(\'' + m.id + '\')">删除</button>' +
+            '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-xs md:text-sm border-none bg-transparent cursor-pointer flex-shrink-0" onclick="deleteMemo(\'' + m.id + '\')">删除</button>' +
           '</div>';
         }
       } else {
@@ -698,11 +712,11 @@
 
       // 日历 HTML
       var calHtml = '';
-      calHtml += '<div class="card p-5 lg:col-span-1">';
+      calHtml += '<div class="card p-3 md:p-5 lg:col-span-1">';
       calHtml += '<div class="flex items-center justify-between mb-4">' +
-        '<button class="text-[#8c7e75] hover:text-[#ff5c7f] border-none bg-transparent cursor-pointer text-lg" onclick="changeMonth(-1)">‹</button>' +
-        '<div class="font-bold">' + y + ' 年 ' + m + ' 月</div>' +
-        '<button class="text-[#8c7e75] hover:text-[#ff5c7f] border-none bg-transparent cursor-pointer text-lg" onclick="changeMonth(1)">›</button>' +
+        '<button class="text-[#8c7e75] hover:text-[#ff5c7f] border-none bg-transparent cursor-pointer text-lg px-2" onclick="changeMonth(-1)">‹</button>' +
+        '<div class="font-bold text-sm md:text-base">' + y + ' 年 ' + m + ' 月</div>' +
+        '<button class="text-[#8c7e75] hover:text-[#ff5c7f] border-none bg-transparent cursor-pointer text-lg px-2" onclick="changeMonth(1)">›</button>' +
       '</div>';
       calHtml += '<div class="grid grid-cols-7 gap-1 text-center text-xs text-[#8c7e75] mb-2">' +
         '<div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div></div>';
@@ -715,16 +729,16 @@
         calHtml += '<div class="calendar-day' + (isToday ? ' today' : '') + (isSelected ? ' selected' : '') + '" onclick="selectDate(\'' + ds + '\')">' + days[d] + '</div>';
       }
       calHtml += '</div>';
-      calHtml += '<div class="mt-4 text-xs text-[#8c7e75] text-center">选中日期：' + selectedDate + '</div>';
+      calHtml += '<div class="mt-3 md:mt-4 text-[10px] md:text-xs text-[#8c7e75] text-center">选中日期：' + selectedDate + '</div>';
       calHtml += '</div>';
 
       // 任务列表 HTML
       var taskHtml = '';
-      taskHtml += '<div class="card p-5">';
-      taskHtml += '<div class="flex items-center justify-between mb-4">' +
-        '<div><div class="font-bold text-lg">' + selectedDate + ' 的任务</div>' +
-        '<div class="text-sm text-[#8c7e75]">已完成 ' + completedCount + '/' + tasks.length + '</div></div>' +
-        '<button class="btn-soft px-4 py-2 text-sm" onclick="renderDailyTemplateManager()">管理每日任务模板</button>' +
+      taskHtml += '<div class="card p-4 md:p-5">';
+      taskHtml += '<div class="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-2 md:gap-0">' +
+        '<div><div class="font-bold text-base md:text-lg">' + selectedDate + ' 的任务</div>' +
+        '<div class="text-xs md:text-sm text-[#8c7e75]">已完成 ' + completedCount + '/' + tasks.length + '</div></div>' +
+        '<button class="btn-soft px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm self-start" onclick="renderDailyTemplateManager()">管理每日任务模板</button>' +
       '</div>';
 
       taskHtml += '<div class="space-y-3">';
@@ -732,9 +746,9 @@
         for (var idx = 0; idx < tasks.length; idx++) {
           var task = tasks[idx];
           var taskId = task.id || task.template_id;
-          taskHtml += '<div class="card p-3 flex items-center gap-3 bg-[#fff8f6]" id="task-row-' + idx + '">' +
+          taskHtml += '<div class="card p-2.5 md:p-3 flex items-center gap-2 md:gap-3 bg-[#fff8f6]" id="task-row-' + idx + '">' +
             '<input type="checkbox" class="checkbox-pink" ' + (task.completed ? 'checked' : '') + ' onchange="toggleDailyTask(\'' + taskId + '\', \'' + selectedDate + '\', ' + task.completed + ', ' + (task.isNew || false) + ', \'' + escapeHtml(task.title).replace(/'/g, "\\'") + '\', ' + idx + ')">' +
-            '<div class="flex-1 task-title-display-' + idx + ' ' + (task.completed ? 'completed-line' : '') + '" style="cursor:pointer" onclick="editDailyTaskUI(' + idx + ', \'' + escapeHtml(task.title).replace(/'/g, "\\'") + '\')">' + escapeHtml(task.title) + '</div>' +
+            '<div class="flex-1 text-sm md:text-base task-title-display-' + idx + ' ' + (task.completed ? 'completed-line' : '') + '" style="cursor:pointer;min-width:0;overflow:hidden;text-overflow:ellipsis" onclick="editDailyTaskUI(' + idx + ', \'' + escapeHtml(task.title).replace(/'/g, "\\'") + '\')">' + escapeHtml(task.title) + '</div>' +
           '</div>';
         }
       } else {
@@ -743,9 +757,9 @@
       taskHtml += '</div></div>';
 
       container.innerHTML =
-        '<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">' +
+        '<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">' +
           calHtml +
-          '<div class="lg:col-span-2 space-y-5">' +
+          '<div class="lg:col-span-2 space-y-4 md:space-y-5">' +
             taskHtml +
             '<div id="daily-template-manager"></div>' +
           '</div>' +
@@ -844,23 +858,23 @@
       var templates = result.data || [];
       var html = '';
 
-      html += '<div class="card p-5 fade-in">';
-      html += '<div class="font-bold mb-3">每日任务模板</div>';
+      html += '<div class="card p-4 md:p-5 fade-in">';
+      html += '<div class="font-bold text-base md:text-lg mb-3">每日任务模板</div>';
       html += '<div class="text-xs text-[#8c7e75] mb-3">每天会自动根据模板生成当天任务，已生成的历史任务不受影响。</div>';
       html += '<div class="space-y-2 mb-3">';
 
       for (var i = 0; i < templates.length; i++) {
         var t = templates[i];
         html += '<div class="flex items-center gap-2">' +
-          '<input type="text" value="' + escapeHtml(t.title) + '" class="flex-1 text-sm" onchange="updateTemplate(\'' + t.id + '\', this.value)">' +
-          '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-sm border-none bg-transparent cursor-pointer" onclick="deleteTemplate(\'' + t.id + '\')">删除</button>' +
+          '<input type="text" value="' + escapeHtml(t.title) + '" class="flex-1 text-xs md:text-sm" onchange="updateTemplate(\'' + t.id + '\', this.value)">' +
+          '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-xs md:text-sm border-none bg-transparent cursor-pointer flex-shrink-0" onclick="deleteTemplate(\'' + t.id + '\')">删除</button>' +
         '</div>';
       }
 
       html += '</div>';
-      html += '<div class="flex gap-2">' +
-        '<input id="new-template" type="text" placeholder="新增模板任务..." class="flex-1 text-sm" onkeydown="if(event.key===\'Enter\') addTemplate()">' +
-        '<button class="btn-soft px-4 py-2 text-sm" onclick="addTemplate()">新增</button>' +
+      html += '<div class="flex flex-col md:flex-row gap-2">' +
+        '<input id="new-template" type="text" placeholder="新增模板任务..." class="flex-1 text-xs md:text-sm" onkeydown="if(event.key===\'Enter\') addTemplate()">' +
+        '<button class="btn-soft px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm" onclick="addTemplate()">新增</button>' +
       '</div>';
       html += '</div>';
 
@@ -913,26 +927,26 @@
 
       var html = '';
 
-      html += '<div class="card p-5 mb-6"><div class="grid grid-cols-1 md:grid-cols-4 gap-3">' +
-        '<input id="swim-date" type="date" value="' + fmtDate() + '" class="w-full" />' +
-        '<input id="swim-duration" type="number" placeholder="时长（分钟）" class="w-full" onkeydown="if(event.key===\'Enter\') addSwim()" />' +
-        '<input id="swim-note" type="text" placeholder="备注（可选）" class="md:col-span-1 w-full" onkeydown="if(event.key===\'Enter\') addSwim()" />' +
-        '<button class="btn-primary px-6 py-2.5" onclick="addSwim()">记录</button>' +
+      html += '<div class="card p-4 md:p-5 mb-6"><div class="grid grid-cols-1 md:grid-cols-4 gap-2 md:gap-3">' +
+        '<input id="swim-date" type="date" value="' + fmtDate() + '" class="w-full text-sm md:text-base" />' +
+        '<input id="swim-duration" type="number" placeholder="时长（分钟）" class="w-full text-sm md:text-base" onkeydown="if(event.key===\'Enter\') addSwim()" />' +
+        '<input id="swim-note" type="text" placeholder="备注（可选）" class="md:col-span-1 w-full text-sm md:text-base" onkeydown="if(event.key===\'Enter\') addSwim()" />' +
+        '<button class="btn-primary px-5 md:px-6 py-2 md:py-2.5 text-sm md:text-base" onclick="addSwim()">记录</button>' +
       '</div></div>';
 
-      html += '<div class="card p-5 mb-6 flex items-center justify-between bg-gradient-to-r from-[#dbeafe] to-white">' +
-        '<div><div class="text-sm text-[#8c7e75]">累计游泳时长</div><div class="text-3xl font-bold text-[#2563eb]">' + total + ' 分钟</div></div>' +
-        '<div class="text-4xl">🏊</div>' +
+      html += '<div class="card p-4 md:p-5 mb-6 flex items-center justify-between bg-gradient-to-r from-[#dbeafe] to-white">' +
+        '<div><div class="text-xs md:text-sm text-[#8c7e75]">累计游泳时长</div><div class="text-2xl md:text-3xl font-bold text-[#2563eb]">' + total + ' 分钟</div></div>' +
+        '<div class="text-3xl md:text-4xl">🏊</div>' +
       '</div>';
 
       html += '<div class="space-y-3">';
       if (records.length) {
         for (var j = 0; j < records.length; j++) {
           var s = records[j];
-          html += '<div class="card p-4 flex items-center justify-between">' +
-            '<div><div class="font-medium">' + s.date + '</div>' +
-            '<div class="text-sm text-[#8c7e75]">' + s.duration + ' 分钟' + (s.note ? ' · ' + escapeHtml(s.note) : '') + '</div></div>' +
-            '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-sm border-none bg-transparent cursor-pointer" onclick="deleteSwim(\'' + s.id + '\')">删除</button>' +
+          html += '<div class="card p-3 md:p-4 flex items-center justify-between gap-2">' +
+            '<div class="min-w-0"><div class="font-medium text-sm md:text-base">' + s.date + '</div>' +
+            '<div class="text-xs md:text-sm text-[#8c7e75] truncate">' + s.duration + ' 分钟' + (s.note ? ' · ' + escapeHtml(s.note) : '') + '</div></div>' +
+            '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-xs md:text-sm border-none bg-transparent cursor-pointer flex-shrink-0" onclick="deleteSwim(\'' + s.id + '\')">删除</button>' +
           '</div>';
         }
       } else {
@@ -976,10 +990,10 @@
       var plans = result.data || [];
       var html = '';
 
-      html += '<div class="card p-5 mb-6"><div class="flex gap-3">' +
-        '<input id="plan-title" type="text" placeholder="计划名称" class="flex-1" onkeydown="if(event.key===\'Enter\') addPlan()" />' +
-        '<input id="plan-desc" type="text" placeholder="描述（可选）" class="flex-1" onkeydown="if(event.key===\'Enter\') addPlan()" />' +
-        '<button class="btn-primary px-6 py-2.5" onclick="addPlan()">新建计划</button>' +
+      html += '<div class="card p-4 md:p-5 mb-6"><div class="flex flex-col md:flex-row gap-2 md:gap-3">' +
+        '<input id="plan-title" type="text" placeholder="计划名称" class="flex-1 text-sm md:text-base" onkeydown="if(event.key===\'Enter\') addPlan()" />' +
+        '<input id="plan-desc" type="text" placeholder="描述（可选）" class="flex-1 text-sm md:text-base" onkeydown="if(event.key===\'Enter\') addPlan()" />' +
+        '<button class="btn-primary px-5 md:px-6 py-2 md:py-2.5 text-sm md:text-base" onclick="addPlan()">新建计划</button>' +
       '</div></div>';
 
       html += '<div class="space-y-5">';
@@ -992,31 +1006,31 @@
           for (var s = 0; s < subs.length; s++) { if (subs[s].completed) done++; }
           var pct = total ? Math.round(done / total * 100) : 0;
 
-          html += '<div class="card p-5">' +
-            '<div class="flex items-start justify-between mb-2">' +
-              '<div><div class="font-bold text-lg">' + escapeHtml(p.title) + '</div>' +
-              '<div class="text-sm text-[#8c7e75]">' + escapeHtml(p.description || '暂无描述') + '</div></div>' +
-              '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-sm border-none bg-transparent cursor-pointer" onclick="deletePlan(\'' + p.id + '\')">删除</button>' +
+          html += '<div class="card p-4 md:p-5">' +
+            '<div class="flex items-start justify-between mb-2 gap-2">' +
+              '<div class="min-w-0"><div class="font-bold text-base md:text-lg truncate">' + escapeHtml(p.title) + '</div>' +
+              '<div class="text-xs md:text-sm text-[#8c7e75] truncate">' + escapeHtml(p.description || '暂无描述') + '</div></div>' +
+              '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-xs md:text-sm border-none bg-transparent cursor-pointer flex-shrink-0" onclick="deletePlan(\'' + p.id + '\')">删除</button>' +
             '</div>' +
             '<div class="flex items-center gap-3 mb-4">' +
               '<div class="progress-bar flex-1"><div class="progress-fill" style="width:' + pct + '%"></div></div>' +
-              '<div class="text-sm font-bold text-[#ff5c7f] w-12 text-right">' + pct + '%</div>' +
+              '<div class="text-xs md:text-sm font-bold text-[#ff5c7f] w-10 md:w-12 text-right">' + pct + '%</div>' +
             '</div>';
 
           html += '<div class="space-y-2 mb-3">';
           for (var u = 0; u < subs.length; u++) {
             var sub = subs[u];
-            html += '<div class="flex items-center gap-3 bg-[#fff8f6] rounded-xl px-3 py-2">' +
+            html += '<div class="flex items-center gap-2 md:gap-3 bg-[#fff8f6] rounded-xl px-3 py-2">' +
               '<input type="checkbox" class="checkbox-pink" ' + (sub.completed ? 'checked' : '') + ' onchange="toggleSubtask(\'' + sub.id + '\', ' + sub.completed + ')">' +
-              '<span class="flex-1 text-sm ' + (sub.completed ? 'completed-line' : '') + '">' + escapeHtml(sub.title) + '</span>' +
-              '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-xs border-none bg-transparent cursor-pointer" onclick="deleteSubtask(\'' + sub.id + '\')">删除</button>' +
+              '<span class="flex-1 text-xs md:text-sm ' + (sub.completed ? 'completed-line' : '') + '" style="min-width:0">' + escapeHtml(sub.title) + '</span>' +
+              '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-[10px] md:text-xs border-none bg-transparent cursor-pointer flex-shrink-0" onclick="deleteSubtask(\'' + sub.id + '\')">删除</button>' +
             '</div>';
           }
           html += '</div>';
 
-          html += '<div class="flex gap-2">' +
-            '<input id="subtask-' + p.id + '" type="text" placeholder="添加子任务..." class="flex-1 text-sm" onkeydown="if(event.key===\'Enter\') addSubtask(\'' + p.id + '\')" />' +
-            '<button class="btn-soft px-4 py-2 text-sm" onclick="addSubtask(\'' + p.id + '\')">添加</button>' +
+          html += '<div class="flex flex-col md:flex-row gap-2">' +
+            '<input id="subtask-' + p.id + '" type="text" placeholder="添加子任务..." class="flex-1 text-xs md:text-sm" onkeydown="if(event.key===\'Enter\') addSubtask(\'' + p.id + '\')" />' +
+            '<button class="btn-soft px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm" onclick="addSubtask(\'' + p.id + '\')">添加</button>' +
           '</div></div>';
         }
       } else {
@@ -1091,41 +1105,41 @@
       html += '<div class="space-y-6">';
 
       // 工作空间信息
-      html += '<div class="card p-6">';
-      html += '<div class="font-bold text-lg mb-4">工作空间：' + escapeHtml(currentWorkspace.name) + '</div>';
-      html += '<div class="text-sm text-[#8c7e75] mb-4">你是该工作空间的 <span class="font-bold text-[#ff5c7f]">' + (currentWorkspace.role === 'owner' ? '拥有者' : '编辑者') + '</span></div>';
-      html += '<div class="font-medium mb-2">成员列表（' + members.length + ' 人）</div>';
+      html += '<div class="card p-4 md:p-6">';
+      html += '<div class="font-bold text-base md:text-lg mb-4 truncate">工作空间：' + escapeHtml(currentWorkspace.name) + '</div>';
+      html += '<div class="text-xs md:text-sm text-[#8c7e75] mb-4">你是该工作空间的 <span class="font-bold text-[#ff5c7f]">' + (currentWorkspace.role === 'owner' ? '拥有者' : '编辑者') + '</span></div>';
+      html += '<div class="font-medium text-sm md:text-base mb-2">成员列表（' + members.length + ' 人）</div>';
       html += '<div class="space-y-2">';
       for (var i = 0; i < members.length; i++) {
         var mem = members[i];
         var initials = mem.user_id.slice(0, 2).toUpperCase();
         html += '<div class="flex items-center gap-2 bg-[#fff8f6] rounded-xl px-3 py-2">' +
-          '<div class="w-8 h-8 rounded-full bg-gradient-to-br from-pink-200 to-rose-300 flex items-center justify-center text-white text-sm font-bold">' + initials + '</div>' +
-          '<div class="text-sm text-[#8c7e75]">' + mem.user_id.slice(0, 8) + '...</div>' +
-          '<span class="ml-auto text-xs px-2 py-0.5 rounded-full ' + (mem.role === 'owner' ? 'bg-[#fef3c7] text-[#b45309]' : 'bg-[#dbeafe] text-[#2563eb]') + '">' + (mem.role === 'owner' ? '拥有者' : '编辑者') + '</span>' +
+          '<div class="w-7 h-7 md:w-8 md:h-8 rounded-full bg-gradient-to-br from-pink-200 to-rose-300 flex items-center justify-center text-white text-xs md:text-sm font-bold flex-shrink-0">' + initials + '</div>' +
+          '<div class="text-xs md:text-sm text-[#8c7e75] truncate">' + mem.user_id.slice(0, 8) + '...</div>' +
+          '<span class="ml-auto text-[10px] md:text-xs px-2 py-0.5 rounded-full flex-shrink-0 ' + (mem.role === 'owner' ? 'bg-[#fef3c7] text-[#b45309]' : 'bg-[#dbeafe] text-[#2563eb]') + '">' + (mem.role === 'owner' ? '拥有者' : '编辑者') + '</span>' +
         '</div>';
       }
       html += '</div></div>';
 
       // 邀请家人
-      html += '<div class="card p-6">';
-      html += '<div class="font-bold text-lg mb-2">邀请家人</div>';
-      html += '<div class="text-sm text-[#8c7e75] mb-4">将以下邀请链接分享给家人，对方注册登录后即可加入此工作空间，一起管理备忘和任务。</div>';
-      html += '<div class="bg-[#fff8f6] rounded-xl p-4 mb-3">' +
-        '<div class="text-sm font-medium mb-1">邀请码</div>' +
-        '<div class="text-2xl font-bold text-[#ff5c7f] tracking-widest select-all">' + inviteCode + '</div></div>';
-      html += '<div class="flex gap-2 flex-wrap">' +
-        '<button class="btn-soft px-4 py-2 text-sm" onclick="copyInviteCode()">📋 复制邀请码</button>' +
-        '<button class="btn-soft px-4 py-2 text-sm" onclick="copyInviteLink()">🔗 复制邀请链接</button>' +
+      html += '<div class="card p-4 md:p-6">';
+      html += '<div class="font-bold text-base md:text-lg mb-2">邀请家人</div>';
+      html += '<div class="text-xs md:text-sm text-[#8c7e75] mb-4">将以下邀请链接分享给家人，对方注册登录后即可加入此工作空间，一起管理备忘和任务。</div>';
+      html += '<div class="bg-[#fff8f6] rounded-xl p-3 md:p-4 mb-3">' +
+        '<div class="text-xs md:text-sm font-medium mb-1">邀请码</div>' +
+        '<div class="text-xl md:text-2xl font-bold text-[#ff5c7f] tracking-widest select-all" style="overflow-wrap:break-word">' + inviteCode + '</div></div>';
+      html += '<div class="flex flex-col md:flex-row gap-2">' +
+        '<button class="btn-soft px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm" onclick="copyInviteCode()">📋 复制邀请码</button>' +
+        '<button class="btn-soft px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm" onclick="copyInviteLink()">🔗 复制邀请链接</button>' +
       '</div></div>';
 
       // 加入他人工作空间
-      html += '<div class="card p-6">';
-      html += '<div class="font-bold text-lg mb-2">加入他人的工作空间</div>';
-      html += '<div class="text-sm text-[#8c7e75] mb-3">输入邀请码加入家人的工作空间</div>';
-      html += '<div class="flex gap-2">' +
-        '<input id="join-invite-code" type="text" placeholder="输入 8 位邀请码" class="flex-1 uppercase" maxlength="8" style="text-transform:uppercase" onkeydown="if(event.key===\'Enter\') joinWorkspace()" />' +
-        '<button class="btn-primary px-6 py-2.5" onclick="joinWorkspace()">加入</button>' +
+      html += '<div class="card p-4 md:p-6">';
+      html += '<div class="font-bold text-base md:text-lg mb-2">加入他人的工作空间</div>';
+      html += '<div class="text-xs md:text-sm text-[#8c7e75] mb-3">输入邀请码加入家人的工作空间</div>';
+      html += '<div class="flex flex-col md:flex-row gap-2">' +
+        '<input id="join-invite-code" type="text" placeholder="输入 8 位邀请码" class="flex-1 uppercase text-sm md:text-base" maxlength="8" style="text-transform:uppercase" onkeydown="if(event.key===\'Enter\') joinWorkspace()" />' +
+        '<button class="btn-primary px-5 md:px-6 py-2 md:py-2.5 text-sm md:text-base" onclick="joinWorkspace()">加入</button>' +
       '</div></div>';
 
       html += '</div>';
