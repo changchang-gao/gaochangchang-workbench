@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>高盼专属工作台</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-cream: #fdf8f3;
+      --bg-pink: #fff0f3;
+      --accent-pink: #ff8fa3;
+      --accent-rose: #ff5c7f;
+      --text-main: #4a3f3a;
+      --text-light: #8c7e75;
+      --card-bg: #ffffff;
+    }
+
+    * { font-family: 'Noto Sans SC', sans-serif; }
+    body { background-color: var(--bg-cream); color: var(--text-main); margin: 0; }
+
+    .sidebar-item {
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .sidebar-item:hover { background-color: var(--bg-pink); }
+    .sidebar-item.active {
+      background-color: var(--accent-pink);
+      color: white;
+      box-shadow: 0 4px 14px rgba(255, 143, 163, 0.35);
+    }
+    .sidebar-item.active .icon-box { background-color: rgba(255,255,255,0.25); }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 1.25rem;
+      box-shadow: 0 4px 20px rgba(140, 126, 117, 0.06);
+      transition: box-shadow 0.2s ease;
+    }
+    .card:hover { box-shadow: 0 8px 28px rgba(140, 126, 117, 0.1); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-pink), var(--accent-rose));
+      color: white;
+      border-radius: 9999px;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+      font-weight: 500;
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(255, 92, 127, 0.3); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-soft {
+      background-color: var(--bg-pink);
+      color: var(--accent-rose);
+      border-radius: 9999px;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background-color 0.15s ease;
+    }
+    .btn-soft:hover { background-color: #ffdce3; }
+
+    .checkbox-pink {
+      accent-color: var(--accent-rose);
+      width: 1.15rem; height: 1.15rem;
+      cursor: pointer; flex-shrink: 0;
+    }
+
+    .nav-date {
+      background-color: var(--bg-pink);
+      color: var(--accent-rose);
+      border-radius: 0.75rem;
+      border: 1px solid #ffdce3;
+    }
+
+    .calendar-day {
+      width: 2.25rem; height: 2.25rem;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 9999px; cursor: pointer;
+      transition: background-color 0.15s; font-size: 0.875rem;
+    }
+    .calendar-day:hover { background-color: var(--bg-pink); }
+    .calendar-day.selected {
+      background: linear-gradient(135deg, var(--accent-pink), var(--accent-rose));
+      color: white; font-weight: 600;
+    }
+    .calendar-day.today { border: 1.5px solid var(--accent-pink); }
+
+    .progress-bar {
+      height: 0.6rem; background-color: #f3e8e2;
+      border-radius: 9999px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-pink), var(--accent-rose));
+      border-radius: 9999px; transition: width 0.4s ease;
+    }
+
+    .completed-line { text-decoration: line-through; color: var(--text-light); }
+
+    input[type="text"], input[type="number"], input[type="date"], input[type="email"], input[type="password"], textarea {
+      background-color: #fff8f6;
+      border: 1px solid #f3e8e2;
+      border-radius: 0.75rem; outline: none; padding: 0.625rem 1rem;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input:focus, textarea:focus {
+      border-color: var(--accent-pink);
+      box-shadow: 0 0 0 3px rgba(255, 143, 163, 0.15);
+    }
+
+    .fade-in { animation: fadeIn 0.25s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    .empty-state { color: var(--text-light); text-align: center; padding: 2rem; }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #f3d6ce; border-radius: 3px; }
+
+    .toast {
+      position: fixed; top: 1rem; right: 1rem; z-index: 9999;
+      padding: 0.75rem 1.5rem; border-radius: 0.75rem; color: white;
+      font-weight: 500; animation: slideIn 0.3s ease;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15); max-width: 90vw;
+    }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+    .toast-success { background: #2e8b6b; }
+    .toast-error { background: #ff5c7f; }
+    .toast-info { background: #2563eb; }
+
+    .spinner {
+      display: inline-block; width: 1.25rem; height: 1.25rem;
+      border: 2px solid rgba(255,143,163,0.3); border-top-color: var(--accent-rose);
+      border-radius: 50%; animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .auth-tab {
+      flex: 1; padding: 0.75rem 0; text-align: center; font-weight: 500;
+      border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s;
+    }
+    .auth-tab.active-tab {
+      border-bottom-color: var(--accent-rose); color: var(--accent-rose);
+    }
+  </style>
+</head>
+<body class="h-screen overflow-hidden flex">
+
+  <!-- ========== 认证页面 ========== -->
+  <div id="auth-page" class="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#fff0f3] to-[#fdf8f3]">
+    <div class="card p-8 w-full max-w-md mx-4 fade-in">
+      <div class="text-center mb-6">
+        <div class="w-16 h-16 rounded-full bg-gradient-to-br from-pink-200 to-rose-300 flex items-center justify-center text-white text-2xl font-bold shadow-md mx-auto">盼</div>
+        <div class="font-bold text-xl mt-3 text-[#4a3f3a]">高盼专属工作台</div>
+        <div class="text-sm text-[#8c7e75]">温柔坚持，复利成长</div>
+      </div>
+
+      <div id="auth-tabs" class="flex mb-6 border-b border-[#f3e8e2]">
+        <button class="auth-tab active-tab" data-tab="login" onclick="switchAuthTab('login')">登录</button>
+        <button class="auth-tab" data-tab="register" onclick="switchAuthTab('register')">注册</button>
+      </div>
+
+      <form id="auth-form" onsubmit="return handleAuth(event)" class="space-y-4">
+        <div id="name-field" style="display:none">
+          <label class="block text-sm font-medium text-[#4a3f3a] mb-1">昵称</label>
+          <input id="auth-name" type="text" placeholder="你的昵称" class="w-full" autocomplete="name" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-[#4a3f3a] mb-1">邮箱</label>
+          <input id="auth-email" type="email" placeholder="your@email.com" required class="w-full" autocomplete="email" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-[#4a3f3a] mb-1">密码</label>
+          <input id="auth-password" type="password" placeholder="至少 6 位密码" required minlength="6" class="w-full" autocomplete="current-password" />
+        </div>
+        <button type="submit" id="auth-submit-btn" class="btn-primary w-full py-3 text-lg">登录</button>
+      </form>
+
+      <div id="auth-loading" style="display:none" class="text-center py-4">
+        <div class="spinner"></div>
+        <div class="text-sm text-[#8c7e75] mt-2">处理中...</div>
+      </div>
+
+      <div class="mt-4 text-xs text-center text-[#8c7e75]">
+        登录即表示同意将数据存储在云端，仅限你和邀请的家人可见
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 工作台主界面 ========== -->
+  <div id="app-page" style="display:none" class="w-full h-full flex">
+
+    <!-- 左侧导航 -->
+    <aside class="w-20 md:w-56 h-full flex flex-col py-6 px-3 md:px-5 border-r border-[#f3e8e2] bg-white/60 backdrop-blur-sm shrink-0">
+      <div class="flex flex-col items-center md:items-start mb-8">
+        <div class="w-12 h-12 rounded-full bg-gradient-to-br from-pink-200 to-rose-300 flex items-center justify-center text-white text-xl font-bold shadow-md">盼</div>
+        <div class="hidden md:block mt-3">
+          <div class="font-bold text-lg text-[#4a3f3a]">高盼专属工作台</div>
+          <div class="text-xs text-[#8c7e75]">温柔坚持，复利成长</div>
+        </div>
+      </div>
+
+      <nav class="flex-1 space-y-2 overflow-y-auto">
+        <div class="sidebar-item active flex items-center gap-3 px-3 py-3 rounded-xl" data-view="home" onclick="switchView('home')">
+          <div class="icon-box w-9 h-9 rounded-lg flex items-center justify-center text-lg">🏠</div>
+          <span class="hidden md:block font-medium">首页</span>
+        </div>
+        <div class="sidebar-item flex items-center gap-3 px-3 py-3 rounded-xl" data-view="memo" onclick="switchView('memo')">
+          <div class="icon-box w-9 h-9 rounded-lg flex items-center justify-center text-lg">📝</div>
+          <span class="hidden md:block font-medium">备忘录</span>
+        </div>
+        <div class="sidebar-item flex items-center gap-3 px-3 py-3 rounded-xl" data-view="daily" onclick="switchView('daily')">
+          <div class="icon-box w-9 h-9 rounded-lg flex items-center justify-center text-lg">🧒</div>
+          <span class="hidden md:block font-medium">七宝每日任务</span>
+        </div>
+        <div class="sidebar-item flex items-center gap-3 px-3 py-3 rounded-xl" data-view="swim" onclick="switchView('swim')">
+          <div class="icon-box w-9 h-9 rounded-lg flex items-center justify-center text-lg">🏊</div>
+          <span class="hidden md:block font-medium">游泳练习</span>
+        </div>
+        <div class="sidebar-item flex items-center gap-3 px-3 py-3 rounded-xl" data-view="plan" onclick="switchView('plan')">
+          <div class="icon-box w-9 h-9 rounded-lg flex items-center justify-center text-lg">🚀</div>
+          <span class="hidden md:block font-medium">未来计划</span>
+        </div>
+        <div class="sidebar-item flex items-center gap-3 px-3 py-3 rounded-xl" data-view="settings" onclick="switchView('settings')">
+          <div class="icon-box w-9 h-9 rounded-lg flex items-center justify-center text-lg">⚙️</div>
+          <span class="hidden md:block font-medium">设置</span>
+        </div>
+      </nav>
+
+      <div class="mt-auto pt-4">
+        <button onclick="handleLogout()" class="w-full text-[10px] md:text-xs text-[#8c7e75] hover:text-[#ff5c7f] text-center md:text-left transition-colors border-none bg-transparent cursor-pointer">
+          退出登录
+        </button>
+      </div>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="flex-1 h-full overflow-y-auto p-4 md:p-8 relative">
+      <header class="flex items-center justify-between mb-6">
+        <div>
+          <h1 id="page-title" class="text-2xl md:text-3xl font-bold text-[#4a3f3a]">欢迎回来，高盼 🌸</h1>
+          <p id="page-subtitle" class="text-sm text-[#8c7e75] mt-1">哪怕今天只完成了一件小事，也值得给自己一个拥抱。</p>
+        </div>
+        <div class="nav-date px-4 py-2 text-sm font-medium" id="top-date"></div>
+      </header>
+      <div id="view-container" class="fade-in"></div>
+    </main>
+  </div>
+
+  <!-- ========== 主脚本 ========== -->
+  <script>
+    // ==================== Supabase 初始化 ====================
+    var SUPABASE_URL = 'https://fxbxytpczuvyjwmmfydh.supabase.co';
+    var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ4Ynh5dHBjenV2eWp3bW1meWRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzNzM5MTIsImV4cCI6MjEwMDk0OTkxMn0.lyErYLQ5g380LoE9wDShu_1i9F25JfUovyLx_FOdwL8';
+    var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // ==================== 全局状态 ====================
+    var currentView = 'home';
+    var selectedDate = fmtDate();
+    var currentWorkspace = null;
+    var currentUser = null;
+    var authMode = 'login';
+    var realtimeChannel = null;
+
+    // ==================== 工具函数 ====================
+    function fmtDate(d) {
+      d = d || new Date();
+      return d.toISOString().split('T')[0];
+    }
+
+    function fmtCNDate(d) {
+      d = d || new Date();
+      return d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      var div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function toast(msg, type) {
+      type = type || 'info';
+      var el = document.createElement('div');
+      el.className = 'toast toast-' + type;
+      el.textContent = msg;
+      document.body.appendChild(el);
+      setTimeout(function() { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; }, 2500);
+      setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 3000);
+    }
+
+    // ==================== 认证 ====================
+    function switchAuthTab(tab) {
+      authMode = tab;
+      var tabs = document.querySelectorAll('.auth-tab');
+      for (var i = 0; i < tabs.length; i++) {
+        var t = tabs[i];
+        if (t.dataset.tab === tab) { t.classList.add('active-tab'); }
+        else { t.classList.remove('active-tab'); }
+      }
+      document.getElementById('name-field').style.display = (tab === 'register') ? 'block' : 'none';
+      document.getElementById('auth-submit-btn').textContent = (tab === 'register') ? '注册' : '登录';
+    }
+
+    async function handleAuth(e) {
+      e.preventDefault();
+      var email = document.getElementById('auth-email').value.trim();
+      var password = document.getElementById('auth-password').value;
+      var name = document.getElementById('auth-name').value.trim() || '用户';
+
+      var form = document.getElementById('auth-form');
+      var loading = document.getElementById('auth-loading');
+      form.style.display = 'none';
+      loading.style.display = 'block';
+
+      try {
+        var result;
+        if (authMode === 'register') {
+          result = await supabase.auth.signUp({
+            email: email,
+            password: password,
+            options: { data: { name: name } }
+          });
+          if (result.error) throw result.error;
+
+          if (result.data.user && result.data.session) {
+            // 自动确认了，直接加载
+            toast('注册成功！', 'success');
+            await loadApp();
+          } else {
+            // 需要邮箱确认
+            toast('注册成功！请检查邮箱中的确认链接，然后返回登录。', 'info');
+            form.style.display = 'block';
+            loading.style.display = 'none';
+          }
+        } else {
+          result = await supabase.auth.signInWithPassword({ email: email, password: password });
+          if (result.error) throw result.error;
+          await loadApp();
+        }
+      } catch (err) {
+        form.style.display = 'block';
+        loading.style.display = 'none';
+        toast(err.message || '认证失败，请重试', 'error');
+      }
+      return false;
+    }
+
+    async function handleLogout() {
+      if (realtimeChannel) {
+        supabase.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+      }
+      await supabase.auth.signOut();
+      document.getElementById('app-page').style.display = 'none';
+      document.getElementById('auth-page').style.display = 'flex';
+      currentWorkspace = null;
+      currentUser = null;
+      toast('已退出登录', 'info');
+    }
+
+    // ==================== 应用加载 ====================
+    async function loadApp() {
+      var _a;
+      var userResult = await supabase.auth.getUser();
+      if (!userResult.data.user) return;
+      currentUser = userResult.data.user;
+
+      // 获取用户所属 workspace
+      var memResult = await supabase
+        .from('workspace_members')
+        .select('workspace_id, role, workspaces(id, name, invite_code)')
+        .eq('user_id', currentUser.id)
+        .limit(1);
+
+      if (memResult.data && memResult.data.length > 0) {
+        var m = memResult.data[0];
+        currentWorkspace = m.workspaces;
+        currentWorkspace.role = m.role;
+      } else {
+        // 触发器可能没生效，手动创建
+        var wsResult = await supabase
+          .from('workspaces')
+          .insert({ name: (((_a = currentUser.user_metadata) === null || _a === void 0 ? void 0 : _a.name) || '用户') + ' 的工作空间' })
+          .select().single();
+
+        if (wsResult.data) {
+          currentWorkspace = wsResult.data;
+          currentWorkspace.role = 'owner';
+          await supabase.from('workspace_members').insert({
+            workspace_id: currentWorkspace.id,
+            user_id: currentUser.id,
+            role: 'owner'
+          });
+          // 创建默认模板
+          var defaults = ['晨起喝水', '读绘本 20 分钟', '户外运动 30 分钟', '整理自己的玩具'];
+          var tmpls = [];
+          for (var i = 0; i < defaults.length; i++) {
+            tmpls.push({ workspace_id: currentWorkspace.id, title: defaults[i], sort_order: i + 1 });
+          }
+          await supabase.from('daily_templates').insert(tmpls);
+        }
+      }
+
+      document.getElementById('auth-page').style.display = 'none';
+      document.getElementById('app-page').style.display = 'flex';
+      document.getElementById('top-date').textContent = fmtCNDate();
+
+      setupRealtime();
+      switchView('home');
+    }
+
+    // ==================== 实时同步 ====================
+    function setupRealtime() {
+      if (realtimeChannel) {
+        supabase.removeChannel(realtimeChannel);
+      }
+
+      realtimeChannel = supabase.channel('ws-' + currentWorkspace.id);
+
+      var tables = ['memos', 'daily_templates', 'daily_task_instances', 'swimming_records', 'plans'];
+      for (var i = 0; i < tables.length; i++) {
+        (function(tbl) {
+          realtimeChannel.on('postgres_changes',
+            { event: '*', schema: 'public', table: tbl, filter: 'workspace_id=eq.' + currentWorkspace.id },
+            function() { render(); }
+          );
+        })(tables[i]);
+      }
+
+      // plan_subtasks 通过 plan_id 关联
+      realtimeChannel.on('postgres_changes',
+        { event: '*', schema: 'public', table: 'plan_subtasks' },
+        function() { if (currentView === 'plan') render(); }
+      );
+
+      realtimeChannel.subscribe();
+    }
+
+    // ==================== 路由 & 渲染 ====================
+    function switchView(view) {
+      currentView = view;
+      var items = document.querySelectorAll('.sidebar-item');
+      for (var i = 0; i < items.length; i++) {
+        var el = items[i];
+        if (el.dataset.view === view) { el.classList.add('active'); }
+        else { el.classList.remove('active'); }
+      }
+      render();
+    }
+
+    function render() {
+      var container = document.getElementById('view-container');
+      if (!container) return;
+      container.innerHTML = '';
+      container.classList.remove('fade-in');
+      void container.offsetWidth;
+      container.classList.add('fade-in');
+
+      var titles = {
+        home: ['欢迎回来，高盼 🌸', '哪怕今天只完成了一件小事，也值得给自己一个拥抱。'],
+        memo: ['备忘录 📝', '记录日常备忘、零散小事，完成一项就打个勾。'],
+        daily: ['七宝每日任务 🧒', '选择日期，自动生成每日任务，完成即打卡。'],
+        swim: ['游泳练习 🏊', '记录每一次游泳的日期与时长，见证坚持的力量。'],
+        plan: ['未来计划 🚀', '把大目标拆成子任务，进度一点点推进。'],
+        settings: ['设置 ⚙️', '管理工作空间、邀请家人、查看分享链接。']
+      };
+      document.getElementById('page-title').textContent = titles[currentView][0];
+      document.getElementById('page-subtitle').textContent = titles[currentView][1];
+
+      if (currentView === 'home') renderHome(container);
+      else if (currentView === 'memo') renderMemo(container);
+      else if (currentView === 'daily') renderDaily(container);
+      else if (currentView === 'swim') renderSwim(container);
+      else if (currentView === 'plan') renderPlan(container);
+      else if (currentView === 'settings') renderSettings(container);
+    }
+
+    // ==================== 首页 ====================
+    async function renderHome(container) {
+      var results = await Promise.all([
+        supabase.from('memos').select('id,completed').eq('workspace_id', currentWorkspace.id),
+        supabase.from('plans').select('id, plan_subtasks(completed)').eq('workspace_id', currentWorkspace.id),
+        supabase.from('swimming_records').select('duration').eq('workspace_id', currentWorkspace.id)
+      ]);
+
+      var memos = results[0].data || [];
+      var plans = results[1].data || [];
+      var swim = results[2].data || [];
+
+      var completedMemos = 0;
+      for (var i = 0; i < memos.length; i++) { if (memos[i].completed) completedMemos++; }
+
+      var totalSub = 0, doneSub = 0;
+      for (var j = 0; j < plans.length; j++) {
+        var subs = plans[j].plan_subtasks || [];
+        totalSub += subs.length;
+        for (var k = 0; k < subs.length; k++) { if (subs[k].completed) doneSub++; }
+      }
+      var planProgress = totalSub ? Math.round(doneSub / totalSub * 100) : 0;
+
+      var swimTotal = 0;
+      for (var s = 0; s < swim.length; s++) { swimTotal += parseFloat(swim[s].duration) || 0; }
+
+      container.innerHTML =
+        '<div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">' +
+          '<div class="card p-6 text-center">' +
+            '<div class="text-3xl font-bold text-[#2e8b6b] mb-1">' + completedMemos + '</div>' +
+            '<div class="text-sm text-[#8c7e75]">已完成备忘</div>' +
+          '</div>' +
+          '<div class="card p-6 text-center">' +
+            '<div class="text-3xl font-bold text-[#2563eb] mb-1">' + (memos.length - completedMemos) + '</div>' +
+            '<div class="text-sm text-[#8c7e75]">待办备忘</div>' +
+          '</div>' +
+          '<div class="card p-6 text-center">' +
+            '<div class="text-3xl font-bold text-[#b45309] mb-1">' + planProgress + '%</div>' +
+            '<div class="text-sm text-[#8c7e75]">未来计划进度</div>' +
+          '</div>' +
+        '</div>' +
+
+        '<div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8">' +
+          '<div class="card p-5 cursor-pointer" onclick="switchView(\'memo\')">' +
+            '<div class="flex items-center gap-3 mb-2"><div class="w-10 h-10 rounded-full bg-[#d6f5e6] flex items-center justify-center text-lg">📝</div><div class="font-bold text-lg">备忘录</div></div>' +
+            '<div class="text-sm text-[#8c7e75]">记录零散小事 · ' + memos.length + ' 条</div>' +
+          '</div>' +
+          '<div class="card p-5 cursor-pointer" onclick="switchView(\'daily\')">' +
+            '<div class="flex items-center gap-3 mb-2"><div class="w-10 h-10 rounded-full bg-[#dbeafe] flex items-center justify-center text-lg">🧒</div><div class="font-bold text-lg">七宝每日任务</div></div>' +
+            '<div class="text-sm text-[#8c7e75]">今日待完成 · 查看日历</div>' +
+          '</div>' +
+          '<div class="card p-5 cursor-pointer" onclick="switchView(\'swim\')">' +
+            '<div class="flex items-center gap-3 mb-2"><div class="w-10 h-10 rounded-full bg-[#fef3c7] flex items-center justify-center text-lg">🏊</div><div class="font-bold text-lg">游泳练习</div></div>' +
+            '<div class="text-sm text-[#8c7e75]">累计时长 · ' + swimTotal + ' 分钟</div>' +
+          '</div>' +
+          '<div class="card p-5 cursor-pointer" onclick="switchView(\'plan\')">' +
+            '<div class="flex items-center gap-3 mb-2"><div class="w-10 h-10 rounded-full bg-[#ede9fe] flex items-center justify-center text-lg">🚀</div><div class="font-bold text-lg">未来计划</div></div>' +
+            '<div class="text-sm text-[#8c7e75]">进行中的计划 · ' + plans.length + ' 项</div>' +
+          '</div>' +
+        '</div>' +
+
+        '<div class="card p-6">' +
+          '<div class="flex items-center gap-2 mb-3 text-[#ff5c7f] font-bold"><span>🌸</span> 今日灵感</div>' +
+          '<p class="text-[#4a3f3a] leading-relaxed">"每一小步都是成长，今天的你也已经很棒了。"</p>' +
+        '</div>';
+    }
+
+    // ==================== 备忘录 ====================
+    async function renderMemo(container) {
+      var result = await supabase
+        .from('memos')
+        .select('*')
+        .eq('workspace_id', currentWorkspace.id)
+        .order('created_at', { ascending: false });
+
+      var memos = result.data || [];
+      var html = '';
+
+      html += '<div class="card p-5 mb-6"><div class="flex gap-3">' +
+        '<input id="memo-input" type="text" placeholder="记点什么..." class="flex-1" onkeydown="if(event.key===\'Enter\') addMemo()" />' +
+        '<button class="btn-primary px-6 py-2.5" onclick="addMemo()">添加</button>' +
+      '</div></div>';
+
+      html += '<div class="space-y-3">';
+      if (memos.length) {
+        for (var i = 0; i < memos.length; i++) {
+          var m = memos[i];
+          html += '<div class="card p-4 flex items-start gap-3">' +
+            '<input type="checkbox" class="checkbox-pink mt-1" ' + (m.completed ? 'checked' : '') + ' onchange="toggleMemo(\'' + m.id + '\', ' + m.completed + ')">' +
+            '<div class="flex-1 ' + (m.completed ? 'completed-line' : '') + '">' +
+              '<div class="font-medium">' + escapeHtml(m.content) + '</div>' +
+              '<div class="text-xs text-[#8c7e75] mt-1">' + (m.completed ? '已完成 · ' + m.completed_at : '创建于 ' + m.created_at) + '</div>' +
+            '</div>' +
+            '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-sm border-none bg-transparent cursor-pointer" onclick="deleteMemo(\'' + m.id + '\')">删除</button>' +
+          '</div>';
+        }
+      } else {
+        html += '<div class="empty-state card">还没有备忘，添一件小事吧~</div>';
+      }
+      html += '</div>';
+
+      container.innerHTML = html;
+      setTimeout(function() {
+        var inp = document.getElementById('memo-input');
+        if (inp) inp.focus();
+      }, 100);
+    }
+
+    async function addMemo() {
+      var input = document.getElementById('memo-input');
+      if (!input) return;
+      var content = input.value.trim();
+      if (!content) return;
+
+      var result = await supabase.from('memos').insert({
+        workspace_id: currentWorkspace.id,
+        content: content,
+        created_by: currentUser.id,
+        created_at: fmtDate()
+      });
+      if (result.error) { toast(result.error.message, 'error'); return; }
+      render();
+    }
+
+    async function toggleMemo(id, currentCompleted) {
+      var completed = !currentCompleted;
+      var result = await supabase.from('memos').update({
+        completed: completed,
+        completed_at: completed ? fmtDate() : null
+      }).eq('id', id);
+      if (result.error) { toast(result.error.message, 'error'); return; }
+      render();
+    }
+
+    async function deleteMemo(id) {
+      var result = await supabase.from('memos').delete().eq('id', id);
+      if (result.error) { toast(result.error.message, 'error'); return; }
+      render();
+    }
+
+    // ==================== 七宝每日任务 ====================
+    async function renderDaily(container) {
+      var parts = selectedDate.split('-').map(Number);
+      var y = parts[0], m = parts[1];
+      var daysInMonth = new Date(y, m, 0).getDate();
+      var firstWeekday = new Date(y, m - 1, 1).getDay();
+      var days = [];
+      for (var i = 0; i < firstWeekday; i++) days.push('');
+      for (var i = 1; i <= daysInMonth; i++) days.push(i);
+
+      var results = await Promise.all([
+        supabase.from('daily_templates').select('*').eq('workspace_id', currentWorkspace.id).order('sort_order'),
+        supabase.from('daily_task_instances').select('*').eq('workspace_id', currentWorkspace.id).eq('date', selectedDate)
+      ]);
+
+      var templates = results[0].data || [];
+      var instances = results[1].data || [];
+
+      // 合并：每个模板找对应实例，没有则标记为 new
+      var tasks = [];
+      for (var t = 0; t < templates.length; t++) {
+        var tmpl = templates[t];
+        var found = null;
+        for (var ins = 0; ins < instances.length; ins++) {
+          if (instances[ins].template_id === tmpl.id) { found = instances[ins]; break; }
+        }
+        if (found) {
+          tasks.push(found);
+        } else {
+          tasks.push({
+            id: null,
+            template_id: tmpl.id,
+            title: tmpl.title,
+            completed: false,
+            date: selectedDate,
+            isNew: true
+          });
+        }
+      }
+
+      var completedCount = 0;
+      for (var c = 0; c < tasks.length; c++) { if (tasks[c].completed) completedCount++; }
+
+      // 日历 HTML
+      var calHtml = '';
+      calHtml += '<div class="card p-5 lg:col-span-1">';
+      calHtml += '<div class="flex items-center justify-between mb-4">' +
+        '<button class="text-[#8c7e75] hover:text-[#ff5c7f] border-none bg-transparent cursor-pointer text-lg" onclick="changeMonth(-1)">‹</button>' +
+        '<div class="font-bold">' + y + ' 年 ' + m + ' 月</div>' +
+        '<button class="text-[#8c7e75] hover:text-[#ff5c7f] border-none bg-transparent cursor-pointer text-lg" onclick="changeMonth(1)">›</button>' +
+      '</div>';
+      calHtml += '<div class="grid grid-cols-7 gap-1 text-center text-xs text-[#8c7e75] mb-2">' +
+        '<div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div></div>';
+      calHtml += '<div class="grid grid-cols-7 gap-1 text-center text-sm">';
+      for (var d = 0; d < days.length; d++) {
+        if (!days[d]) { calHtml += '<div></div>'; continue; }
+        var ds = y + '-' + String(m).padStart(2, '0') + '-' + String(days[d]).padStart(2, '0');
+        var isToday = ds === fmtDate();
+        var isSelected = ds === selectedDate;
+        calHtml += '<div class="calendar-day' + (isToday ? ' today' : '') + (isSelected ? ' selected' : '') + '" onclick="selectDate(\'' + ds + '\')">' + days[d] + '</div>';
+      }
+      calHtml += '</div>';
+      calHtml += '<div class="mt-4 text-xs text-[#8c7e75] text-center">选中日期：' + selectedDate + '</div>';
+      calHtml += '</div>';
+
+      // 任务列表 HTML
+      var taskHtml = '';
+      taskHtml += '<div class="card p-5">';
+      taskHtml += '<div class="flex items-center justify-between mb-4">' +
+        '<div><div class="font-bold text-lg">' + selectedDate + ' 的任务</div>' +
+        '<div class="text-sm text-[#8c7e75]">已完成 ' + completedCount + '/' + tasks.length + '</div></div>' +
+        '<button class="btn-soft px-4 py-2 text-sm" onclick="renderDailyTemplateManager()">管理每日任务模板</button>' +
+      '</div>';
+
+      taskHtml += '<div class="space-y-3">';
+      if (tasks.length) {
+        for (var idx = 0; idx < tasks.length; idx++) {
+          var task = tasks[idx];
+          var taskId = task.id || task.template_id;
+          taskHtml += '<div class="card p-3 flex items-center gap-3 bg-[#fff8f6]" id="task-row-' + idx + '">' +
+            '<input type="checkbox" class="checkbox-pink" ' + (task.completed ? 'checked' : '') + ' onchange="toggleDailyTask(\'' + taskId + '\', \'' + selectedDate + '\', ' + task.completed + ', ' + (task.isNew || false) + ', \'' + escapeHtml(task.title).replace(/'/g, "\\'") + '\', ' + idx + ')">' +
+            '<div class="flex-1 task-title-display-' + idx + ' ' + (task.completed ? 'completed-line' : '') + '" style="cursor:pointer" onclick="editDailyTaskUI(' + idx + ', \'' + escapeHtml(task.title).replace(/'/g, "\\'") + '\')">' + escapeHtml(task.title) + '</div>' +
+          '</div>';
+        }
+      } else {
+        taskHtml += '<div class="empty-state">该日暂无任务，先去模板里添加吧~</div>';
+      }
+      taskHtml += '</div></div>';
+
+      container.innerHTML =
+        '<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">' +
+          calHtml +
+          '<div class="lg:col-span-2 space-y-5">' +
+            taskHtml +
+            '<div id="daily-template-manager"></div>' +
+          '</div>' +
+        '</div>';
+    }
+
+    // 存储当前正在编辑的任务信息
+    window._dailyEditState = {};
+
+    function changeMonth(delta) {
+      var parts = selectedDate.split('-').map(Number);
+      var d = new Date(parts[0], parts[1] - 1 + delta, 1);
+      selectedDate = fmtDate(d);
+      render();
+    }
+
+    function selectDate(ds) {
+      selectedDate = ds;
+      render();
+    }
+
+    function editDailyTaskUI(idx, currentTitle) {
+      var display = document.querySelector('.task-title-display-' + idx);
+      if (!display) return;
+      var completed = display.classList.contains('completed-line');
+      display.outerHTML = '<input id="daily-edit-' + idx + '" type="text" value="' + escapeHtml(currentTitle) + '" class="flex-1 px-3 py-1.5 text-sm task-edit-' + idx + '" onblur="saveDailyTaskUI(' + idx + ')" onkeydown="if(event.key===\'Enter\') saveDailyTaskUI(' + idx + ')" />';
+      window._dailyEditState[idx] = { originalTitle: currentTitle, completed: completed };
+      setTimeout(function() {
+        var inp = document.getElementById('daily-edit-' + idx);
+        if (inp) { inp.focus(); inp.select(); }
+      }, 50);
+    }
+
+    async function saveDailyTaskUI(idx) {
+      var input = document.getElementById('daily-edit-' + idx);
+      var newTitle = input ? input.value.trim() : '';
+      var state = window._dailyEditState[idx] || {};
+
+      if (!newTitle || newTitle === state.originalTitle) {
+        // 恢复显示
+        var editEl = document.querySelector('.task-edit-' + idx);
+        if (editEl) {
+          editEl.outerHTML = '<div class="flex-1 task-title-display-' + idx + ' ' + (state.completed ? 'completed-line' : '') + '" style="cursor:pointer" onclick="editDailyTaskUI(' + idx + ', \'' + escapeHtml(state.originalTitle).replace(/'/g, "\\'") + '\')">' + escapeHtml(state.originalTitle) + '</div>';
+        }
+        delete window._dailyEditState[idx];
+        return;
+      }
+
+      // 找到这条任务并更新
+      var result = await supabase
+        .from('daily_task_instances')
+        .select('*')
+        .eq('workspace_id', currentWorkspace.id)
+        .eq('date', selectedDate);
+
+      var instances = result.data || [];
+      if (instances[idx]) {
+        await supabase.from('daily_task_instances').update({ title: newTitle }).eq('id', instances[idx].id);
+      }
+      delete window._dailyEditState[idx];
+      render();
+    }
+
+    async function toggleDailyTask(taskId, date, currentCompleted, isNew, title, idx) {
+      var completed = !currentCompleted;
+      if (isNew) {
+        await supabase.from('daily_task_instances').insert({
+          workspace_id: currentWorkspace.id,
+          template_id: taskId,
+          date: date,
+          title: title,
+          completed: completed,
+          completed_at: completed ? fmtDate() : null,
+          completed_by: completed ? currentUser.id : null
+        });
+      } else {
+        await supabase.from('daily_task_instances').update({
+          completed: completed,
+          completed_at: completed ? fmtDate() : null,
+          completed_by: completed ? currentUser.id : null
+        }).eq('id', taskId);
+      }
+      render();
+    }
+
+    async function renderDailyTemplateManager() {
+      var el = document.getElementById('daily-template-manager');
+      if (!el) return;
+
+      var result = await supabase
+        .from('daily_templates')
+        .select('*')
+        .eq('workspace_id', currentWorkspace.id)
+        .order('sort_order');
+
+      var templates = result.data || [];
+      var html = '';
+
+      html += '<div class="card p-5 fade-in">';
+      html += '<div class="font-bold mb-3">每日任务模板</div>';
+      html += '<div class="text-xs text-[#8c7e75] mb-3">每天会自动根据模板生成当天任务，已生成的历史任务不受影响。</div>';
+      html += '<div class="space-y-2 mb-3">';
+
+      for (var i = 0; i < templates.length; i++) {
+        var t = templates[i];
+        html += '<div class="flex items-center gap-2">' +
+          '<input type="text" value="' + escapeHtml(t.title) + '" class="flex-1 text-sm" onchange="updateTemplate(\'' + t.id + '\', this.value)">' +
+          '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-sm border-none bg-transparent cursor-pointer" onclick="deleteTemplate(\'' + t.id + '\')">删除</button>' +
+        '</div>';
+      }
+
+      html += '</div>';
+      html += '<div class="flex gap-2">' +
+        '<input id="new-template" type="text" placeholder="新增模板任务..." class="flex-1 text-sm" onkeydown="if(event.key===\'Enter\') addTemplate()">' +
+        '<button class="btn-soft px-4 py-2 text-sm" onclick="addTemplate()">新增</button>' +
+      '</div>';
+      html += '</div>';
+
+      el.innerHTML = html;
+      setTimeout(function() {
+        var inp = document.getElementById('new-template');
+        if (inp) inp.focus();
+      }, 100);
+    }
+
+    async function addTemplate() {
+      var input = document.getElementById('new-template');
+      if (!input) return;
+      var title = input.value.trim();
+      if (!title) return;
+
+      var existing = await supabase.from('daily_templates').select('sort_order').eq('workspace_id', currentWorkspace.id).order('sort_order', { ascending: false }).limit(1);
+      var nextOrder = (existing.data && existing.data.length ? existing.data[0].sort_order : 0) + 1;
+
+      await supabase.from('daily_templates').insert({
+        workspace_id: currentWorkspace.id,
+        title: title,
+        sort_order: nextOrder
+      });
+      renderDailyTemplateManager();
+    }
+
+    async function updateTemplate(id, title) {
+      var val = title.trim();
+      if (!val) return;
+      await supabase.from('daily_templates').update({ title: val }).eq('id', id);
+    }
+
+    async function deleteTemplate(id) {
+      await supabase.from('daily_templates').delete().eq('id', id);
+      renderDailyTemplateManager();
+    }
+
+    // ==================== 游泳练习 ====================
+    async function renderSwim(container) {
+      var result = await supabase
+        .from('swimming_records')
+        .select('*')
+        .eq('workspace_id', currentWorkspace.id)
+        .order('date', { ascending: false });
+
+      var records = result.data || [];
+      var total = 0;
+      for (var i = 0; i < records.length; i++) { total += parseFloat(records[i].duration) || 0; }
+
+      var html = '';
+
+      html += '<div class="card p-5 mb-6"><div class="grid grid-cols-1 md:grid-cols-4 gap-3">' +
+        '<input id="swim-date" type="date" value="' + fmtDate() + '" class="w-full" />' +
+        '<input id="swim-duration" type="number" placeholder="时长（分钟）" class="w-full" onkeydown="if(event.key===\'Enter\') addSwim()" />' +
+        '<input id="swim-note" type="text" placeholder="备注（可选）" class="md:col-span-1 w-full" onkeydown="if(event.key===\'Enter\') addSwim()" />' +
+        '<button class="btn-primary px-6 py-2.5" onclick="addSwim()">记录</button>' +
+      '</div></div>';
+
+      html += '<div class="card p-5 mb-6 flex items-center justify-between bg-gradient-to-r from-[#dbeafe] to-white">' +
+        '<div><div class="text-sm text-[#8c7e75]">累计游泳时长</div><div class="text-3xl font-bold text-[#2563eb]">' + total + ' 分钟</div></div>' +
+        '<div class="text-4xl">🏊</div>' +
+      '</div>';
+
+      html += '<div class="space-y-3">';
+      if (records.length) {
+        for (var j = 0; j < records.length; j++) {
+          var s = records[j];
+          html += '<div class="card p-4 flex items-center justify-between">' +
+            '<div><div class="font-medium">' + s.date + '</div>' +
+            '<div class="text-sm text-[#8c7e75]">' + s.duration + ' 分钟' + (s.note ? ' · ' + escapeHtml(s.note) : '') + '</div></div>' +
+            '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-sm border-none bg-transparent cursor-pointer" onclick="deleteSwim(\'' + s.id + '\')">删除</button>' +
+          '</div>';
+        }
+      } else {
+        html += '<div class="empty-state card">还没有游泳记录，去游一场吧~</div>';
+      }
+      html += '</div>';
+
+      container.innerHTML = html;
+    }
+
+    async function addSwim() {
+      var date = document.getElementById('swim-date').value;
+      var duration = document.getElementById('swim-duration').value;
+      var note = document.getElementById('swim-note').value.trim();
+      if (!date || !duration) return;
+
+      var result = await supabase.from('swimming_records').insert({
+        workspace_id: currentWorkspace.id,
+        date: date,
+        duration: parseInt(duration),
+        note: note,
+        created_by: currentUser.id
+      });
+      if (result.error) { toast(result.error.message, 'error'); return; }
+      render();
+    }
+
+    async function deleteSwim(id) {
+      await supabase.from('swimming_records').delete().eq('id', id);
+      render();
+    }
+
+    // ==================== 未来计划 ====================
+    async function renderPlan(container) {
+      var result = await supabase
+        .from('plans')
+        .select('*, plan_subtasks(*)')
+        .eq('workspace_id', currentWorkspace.id)
+        .order('created_at', { ascending: false });
+
+      var plans = result.data || [];
+      var html = '';
+
+      html += '<div class="card p-5 mb-6"><div class="flex gap-3">' +
+        '<input id="plan-title" type="text" placeholder="计划名称" class="flex-1" onkeydown="if(event.key===\'Enter\') addPlan()" />' +
+        '<input id="plan-desc" type="text" placeholder="描述（可选）" class="flex-1" onkeydown="if(event.key===\'Enter\') addPlan()" />' +
+        '<button class="btn-primary px-6 py-2.5" onclick="addPlan()">新建计划</button>' +
+      '</div></div>';
+
+      html += '<div class="space-y-5">';
+      if (plans.length) {
+        for (var i = 0; i < plans.length; i++) {
+          var p = plans[i];
+          var subs = (p.plan_subtasks || []).sort(function(a, b) { return a.sort_order - b.sort_order; });
+          var total = subs.length;
+          var done = 0;
+          for (var s = 0; s < subs.length; s++) { if (subs[s].completed) done++; }
+          var pct = total ? Math.round(done / total * 100) : 0;
+
+          html += '<div class="card p-5">' +
+            '<div class="flex items-start justify-between mb-2">' +
+              '<div><div class="font-bold text-lg">' + escapeHtml(p.title) + '</div>' +
+              '<div class="text-sm text-[#8c7e75]">' + escapeHtml(p.description || '暂无描述') + '</div></div>' +
+              '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-sm border-none bg-transparent cursor-pointer" onclick="deletePlan(\'' + p.id + '\')">删除</button>' +
+            '</div>' +
+            '<div class="flex items-center gap-3 mb-4">' +
+              '<div class="progress-bar flex-1"><div class="progress-fill" style="width:' + pct + '%"></div></div>' +
+              '<div class="text-sm font-bold text-[#ff5c7f] w-12 text-right">' + pct + '%</div>' +
+            '</div>';
+
+          html += '<div class="space-y-2 mb-3">';
+          for (var u = 0; u < subs.length; u++) {
+            var sub = subs[u];
+            html += '<div class="flex items-center gap-3 bg-[#fff8f6] rounded-xl px-3 py-2">' +
+              '<input type="checkbox" class="checkbox-pink" ' + (sub.completed ? 'checked' : '') + ' onchange="toggleSubtask(\'' + sub.id + '\', ' + sub.completed + ')">' +
+              '<span class="flex-1 text-sm ' + (sub.completed ? 'completed-line' : '') + '">' + escapeHtml(sub.title) + '</span>' +
+              '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-xs border-none bg-transparent cursor-pointer" onclick="deleteSubtask(\'' + sub.id + '\')">删除</button>' +
+            '</div>';
+          }
+          html += '</div>';
+
+          html += '<div class="flex gap-2">' +
+            '<input id="subtask-' + p.id + '" type="text" placeholder="添加子任务..." class="flex-1 text-sm" onkeydown="if(event.key===\'Enter\') addSubtask(\'' + p.id + '\')" />' +
+            '<button class="btn-soft px-4 py-2 text-sm" onclick="addSubtask(\'' + p.id + '\')">添加</button>' +
+          '</div></div>';
+        }
+      } else {
+        html += '<div class="empty-state card">还没有未来计划，先定一个小目标吧~</div>';
+      }
+      html += '</div>';
+
+      container.innerHTML = html;
+    }
+
+    async function addPlan() {
+      var title = document.getElementById('plan-title').value.trim();
+      var desc = document.getElementById('plan-desc').value.trim();
+      if (!title) return;
+
+      await supabase.from('plans').insert({
+        workspace_id: currentWorkspace.id,
+        title: title,
+        description: desc,
+        created_by: currentUser.id
+      });
+      render();
+    }
+
+    async function deletePlan(id) {
+      await supabase.from('plans').delete().eq('id', id);
+      render();
+    }
+
+    async function addSubtask(planId) {
+      var input = document.getElementById('subtask-' + planId);
+      if (!input) return;
+      var title = input.value.trim();
+      if (!title) return;
+
+      var existing = await supabase.from('plan_subtasks').select('sort_order').eq('plan_id', planId).order('sort_order', { ascending: false }).limit(1);
+      var nextOrder = (existing.data && existing.data.length ? existing.data[0].sort_order : 0) + 1;
+
+      await supabase.from('plan_subtasks').insert({
+        plan_id: planId,
+        title: title,
+        sort_order: nextOrder
+      });
+      render();
+    }
+
+    async function toggleSubtask(id, currentCompleted) {
+      await supabase.from('plan_subtasks').update({ completed: !currentCompleted }).eq('id', id);
+      render();
+    }
+
+    async function deleteSubtask(id) {
+      await supabase.from('plan_subtasks').delete().eq('id', id);
+      render();
+    }
+
+    // ==================== 设置 ====================
+    async function renderSettings(container) {
+      var inviteCode = currentWorkspace.invite_code || '';
+      var origin = window.location.origin + window.location.pathname;
+      var inviteLink = origin + '?invite=' + inviteCode;
+
+      var memResult = await supabase
+        .from('workspace_members')
+        .select('role, user_id')
+        .eq('workspace_id', currentWorkspace.id);
+
+      var members = memResult.data || [];
+
+      var html = '';
+
+      html += '<div class="space-y-6">';
+
+      // 工作空间信息
+      html += '<div class="card p-6">';
+      html += '<div class="font-bold text-lg mb-4">工作空间：' + escapeHtml(currentWorkspace.name) + '</div>';
+      html += '<div class="text-sm text-[#8c7e75] mb-4">你是该工作空间的 <span class="font-bold text-[#ff5c7f]">' + (currentWorkspace.role === 'owner' ? '拥有者' : '编辑者') + '</span></div>';
+      html += '<div class="font-medium mb-2">成员列表（' + members.length + ' 人）</div>';
+      html += '<div class="space-y-2">';
+      for (var i = 0; i < members.length; i++) {
+        var mem = members[i];
+        var initials = mem.user_id.slice(0, 2).toUpperCase();
+        html += '<div class="flex items-center gap-2 bg-[#fff8f6] rounded-xl px-3 py-2">' +
+          '<div class="w-8 h-8 rounded-full bg-gradient-to-br from-pink-200 to-rose-300 flex items-center justify-center text-white text-sm font-bold">' + initials + '</div>' +
+          '<div class="text-sm text-[#8c7e75]">' + mem.user_id.slice(0, 8) + '...</div>' +
+          '<span class="ml-auto text-xs px-2 py-0.5 rounded-full ' + (mem.role === 'owner' ? 'bg-[#fef3c7] text-[#b45309]' : 'bg-[#dbeafe] text-[#2563eb]') + '">' + (mem.role === 'owner' ? '拥有者' : '编辑者') + '</span>' +
+        '</div>';
+      }
+      html += '</div></div>';
+
+      // 邀请家人
+      html += '<div class="card p-6">';
+      html += '<div class="font-bold text-lg mb-2">邀请家人</div>';
+      html += '<div class="text-sm text-[#8c7e75] mb-4">将以下邀请链接分享给家人，对方注册登录后即可加入此工作空间，一起管理备忘和任务。</div>';
+      html += '<div class="bg-[#fff8f6] rounded-xl p-4 mb-3">' +
+        '<div class="text-sm font-medium mb-1">邀请码</div>' +
+        '<div class="text-2xl font-bold text-[#ff5c7f] tracking-widest select-all">' + inviteCode + '</div></div>';
+      html += '<div class="flex gap-2 flex-wrap">' +
+        '<button class="btn-soft px-4 py-2 text-sm" onclick="copyInviteCode()">📋 复制邀请码</button>' +
+        '<button class="btn-soft px-4 py-2 text-sm" onclick="copyInviteLink()">🔗 复制邀请链接</button>' +
+      '</div></div>';
+
+      // 加入他人工作空间
+      html += '<div class="card p-6">';
+      html += '<div class="font-bold text-lg mb-2">加入他人的工作空间</div>';
+      html += '<div class="text-sm text-[#8c7e75] mb-3">输入邀请码加入家人的工作空间</div>';
+      html += '<div class="flex gap-2">' +
+        '<input id="join-invite-code" type="text" placeholder="输入 8 位邀请码" class="flex-1 uppercase" maxlength="8" style="text-transform:uppercase" onkeydown="if(event.key===\'Enter\') joinWorkspace()" />' +
+        '<button class="btn-primary px-6 py-2.5" onclick="joinWorkspace()">加入</button>' +
+      '</div></div>';
+
+      html += '</div>';
+
+      container.innerHTML = html;
+    }
+
+    function copyInviteCode() {
+      var code = currentWorkspace.invite_code || '';
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(code).then(function() { toast('邀请码已复制！', 'success'); }).catch(function() { toast('复制失败，请手动复制', 'error'); });
+      } else {
+        toast('请手动复制：' + code, 'info');
+      }
+    }
+
+    function copyInviteLink() {
+      var origin = window.location.origin + window.location.pathname;
+      var link = origin + '?invite=' + (currentWorkspace.invite_code || '');
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(link).then(function() { toast('邀请链接已复制！', 'success'); }).catch(function() { toast('复制失败', 'error'); });
+      } else {
+        toast('请手动复制：' + link, 'info');
+      }
+    }
+
+    async function joinWorkspace() {
+      var input = document.getElementById('join-invite-code');
+      if (!input) return;
+      var code = input.value.trim().toUpperCase();
+      if (!code) return;
+
+      var wsResult = await supabase.from('workspaces').select('id, name').eq('invite_code', code).single();
+      if (!wsResult.data) { toast('邀请码无效', 'error'); return; }
+
+      var ws = wsResult.data;
+      var insResult = await supabase.from('workspace_members').insert({
+        workspace_id: ws.id,
+        user_id: currentUser.id,
+        role: 'editor'
+      });
+
+      if (insResult.error) {
+        if (insResult.error.code === '23505') {
+          toast('你已经是该工作空间的成员', 'info');
+        } else {
+          toast(insResult.error.message, 'error');
+        }
+        return;
+      }
+
+      currentWorkspace = ws;
+      currentWorkspace.role = 'editor';
+      setupRealtime();
+      toast('已加入「' + ws.name + '」！', 'success');
+      render();
+    }
+
+    // ==================== 启动 ====================
+    async function init() {
+      // 检查是否已登录
+      var sessionResult = await supabase.auth.getSession();
+      if (sessionResult.data.session) {
+        await loadApp();
+
+        // 处理邀请链接
+        var params = new URLSearchParams(window.location.search);
+        var inviteCode = params.get('invite');
+        if (inviteCode && currentWorkspace) {
+          var wsResult = await supabase.from('workspaces').select('id, name').eq('invite_code', inviteCode.toUpperCase()).single();
+          if (wsResult.data && wsResult.data.id !== currentWorkspace.id) {
+            var insResult = await supabase.from('workspace_members').insert({
+              workspace_id: wsResult.data.id,
+              user_id: currentUser.id,
+              role: 'editor'
+            });
+            if (!insResult.error || insResult.error.code === '23505') {
+              currentWorkspace = wsResult.data;
+              currentWorkspace.role = 'editor';
+              setupRealtime();
+              toast('已加入「' + wsResult.data.name + '」！', 'success');
+            }
+          }
+        }
+      } else {
+        // 未登录，显示登录页
+        document.getElementById('auth-page').style.display = 'flex';
+        document.getElementById('app-page').style.display = 'none';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
