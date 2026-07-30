@@ -379,25 +379,46 @@
         .eq('user_id', currentUser.id)
         .limit(1);
 
+      if (memResult.error) {
+        toast('加载工作空间失败：' + memResult.error.message, 'error');
+        console.error('workspace_members query error:', memResult.error);
+        return;
+      }
+
       if (memResult.data && memResult.data.length > 0) {
         var m = memResult.data[0];
         currentWorkspace = m.workspaces;
         currentWorkspace.role = m.role;
       } else {
-        // 触发器可能没生效，手动创建
+        // 手动创建 workspace
+        var displayName = (((_a = currentUser.user_metadata) === null || _a === void 0 ? void 0 : _a.name) || '用户');
         var wsResult = await supabase
           .from('workspaces')
-          .insert({ name: (((_a = currentUser.user_metadata) === null || _a === void 0 ? void 0 : _a.name) || '用户') + ' 的工作空间' })
+          .insert({ name: displayName + ' 的工作空间' })
           .select().single();
+
+        if (wsResult.error) {
+          toast('创建工作空间失败：' + wsResult.error.message, 'error');
+          console.error('workspace insert error:', wsResult.error);
+          return;
+        }
 
         if (wsResult.data) {
           currentWorkspace = wsResult.data;
           currentWorkspace.role = 'owner';
-          await supabase.from('workspace_members').insert({
+
+          var memberResult = await supabase.from('workspace_members').insert({
             workspace_id: currentWorkspace.id,
             user_id: currentUser.id,
             role: 'owner'
           });
+
+          if (memberResult.error) {
+            toast('加入工作空间失败：' + memberResult.error.message, 'error');
+            console.error('workspace_members insert error:', memberResult.error);
+            return;
+          }
+
           // 创建默认模板
           var defaults = ['晨起喝水', '读绘本 20 分钟', '户外运动 30 分钟', '整理自己的玩具'];
           var tmpls = [];
@@ -406,6 +427,11 @@
           }
           await supabase.from('daily_templates').insert(tmpls);
         }
+      }
+
+      if (!currentWorkspace) {
+        toast('无法获取或创建工作空间，请刷新页面重试', 'error');
+        return;
       }
 
       document.getElementById('auth-page').style.display = 'none';
@@ -636,6 +662,11 @@
         supabase.from('daily_templates').select('*').eq('workspace_id', currentWorkspace.id).order('sort_order'),
         supabase.from('daily_task_instances').select('*').eq('workspace_id', currentWorkspace.id).eq('date', selectedDate)
       ]);
+
+      if (results[0].error || results[1].error) {
+        container.innerHTML = '<div class="empty-state card">加载任务失败：' + (results[0].error?.message || results[1].error?.message) + '<br>请刷新页面重试</div>';
+        return;
+      }
 
       var templates = results[0].data || [];
       var instances = results[1].data || [];
