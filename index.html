@@ -416,7 +416,7 @@
         if (m === 4 || m === 6 || m === 9 || m === 11) return 30;
         return ((y % 4 === 0 && y % 100 !== 0) || y % 400 === 0) ? 29 : 28;
       }
-      function cyclical(num) { return Gan[num % 10] + Zhi[num % 12]; }
+      function cyclical(num) { return Gan[(num - 1) % 10] + Zhi[(num - 1) % 12]; }
 
       window.getLunarDate = function(date) {
         var y = date.getFullYear(), m = date.getMonth() + 1, d = date.getDate();
@@ -502,8 +502,8 @@
       window.lunarYearOptions = function() {
         var opts = '';
         for (var y = 1900; y <= 2100; y++) {
-          var ganzhi = cyclical(y - 1900 + 36);
-          var animal = Animals[(y - 1900 + 8) % 12];
+          var ganzhi = cyclical(y - 1900 + 37);
+          var animal = Animals[(y - 1900 + 36) % 12];
           opts += '<option value="' + y + '">' + y + ' 年 (' + ganzhi + '·' + animal + ')</option>';
         }
         return opts;
@@ -977,9 +977,20 @@
 
       var html = '';
       html += '<div class="card p-3 md:p-5 mb-4">';
+      var yearOpts = '';
+      for (var yyOpt = 1900; yyOpt <= 2100; yyOpt++) {
+        yearOpts += '<option value="' + yyOpt + '" ' + (yyOpt === y ? 'selected' : '') + '>' + yyOpt + ' 年</option>';
+      }
+      var monthOpts = '';
+      for (var mmOpt = 1; mmOpt <= 12; mmOpt++) {
+        monthOpts += '<option value="' + mmOpt + '" ' + (mmOpt === m ? 'selected' : '') + '>' + mmOpt + ' 月</option>';
+      }
       html += '<div class="flex items-center justify-between mb-4">' +
         '<button class="text-[#8c7e75] hover:text-[#ff5c7f] border-none bg-transparent cursor-pointer text-lg px-2" onclick="changeScheduleMonth(-1)">‹</button>' +
-        '<div class="font-bold text-sm md:text-base">' + fmtCNMonthYear(y, m) + '</div>' +
+        '<div class="flex items-center gap-1 md:gap-2">' +
+          '<select id="schedule-year-select" class="text-xs md:text-sm py-1.5 pr-6" onchange="jumpScheduleYearMonth()">' + yearOpts + '</select>' +
+          '<select id="schedule-month-select" class="text-xs md:text-sm py-1.5 pr-6" onchange="jumpScheduleYearMonth()">' + monthOpts + '</select>' +
+        '</div>' +
         '<button class="text-[#8c7e75] hover:text-[#ff5c7f] border-none bg-transparent cursor-pointer text-lg px-2" onclick="changeScheduleMonth(1)">›</button>' +
       '</div>';
       html += '<div class="grid grid-cols-7 gap-1 text-center text-xs text-[#8c7e75] mb-2">' +
@@ -1105,10 +1116,10 @@
             var item = list[li];
             var daysLeft = Math.ceil((new Date(item.nextDate) - new Date(todayStr)) / 86400000);
             var daysText = daysLeft === 0 ? '今天' : (daysLeft + ' 天后');
-            html += '<div class="flex items-center gap-2 text-xs md:text-sm">' +
+            html += '<div class="flex items-center gap-2 text-xs md:text-sm cursor-pointer hover:bg-white rounded-lg px-1 py-1 transition-colors" onclick="jumpToScheduleDate('' + item.nextDate + '')">' +
               '<span class="w-2 h-2 rounded-full flex-shrink-0" style="background-color:' + (item.color || '#ff8fa3') + '"></span>' +
               '<span class="flex-1 min-w-0 truncate">' + escapeHtml(item.title) + '</span>' +
-              '<span class="text-[10px] md:text-xs text-[#8c7e75] flex-shrink-0">' + item.nextDate + '<br>' + daysText + '</span>' +
+              '<span class="text-[10px] md:text-xs text-[#8c7e75] flex-shrink-0 text-right">' + item.nextDate + '<br>' + daysText + '</span>' +
             '</div>';
           }
         } else {
@@ -1168,6 +1179,21 @@
       render();
     }
 
+    function jumpScheduleYearMonth() {
+      var yearSel = document.getElementById('schedule-year-select');
+      var monthSel = document.getElementById('schedule-month-select');
+      if (!yearSel || !monthSel) return;
+      scheduleCurrentYearMonth = { year: parseInt(yearSel.value), month: parseInt(monthSel.value) };
+      render();
+    }
+
+    function jumpToScheduleDate(ds) {
+      var parts = ds.split('-').map(Number);
+      scheduleCurrentYearMonth = { year: parts[0], month: parts[1] };
+      scheduleSelectedDate = ds;
+      render();
+    }
+
     function selectScheduleDate(ds) {
       scheduleSelectedDate = ds;
       render();
@@ -1224,6 +1250,7 @@
             '<div>' +
               '<label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">' + placeholders[selectedType] + '</label>' +
               '<input id="schedule-title" type="text" value="' + escapeHtml(title) + '" placeholder="' + placeholders[selectedType] + '" class="w-full text-sm md:text-base" />' +
+              '<input type="hidden" id="schedule-edit-id" value="' + (editingScheduleId || '') + '" />' +
             '</div>' +
             '<div class="grid grid-cols-2 gap-3" id="schedule-date-grid">' +
               '<div>' +
@@ -1396,6 +1423,8 @@
     }
 
     async function saveSchedule() {
+      var editIdEl = document.getElementById('schedule-edit-id');
+      editingScheduleId = editIdEl && editIdEl.value ? editIdEl.value : null;
       var title = document.getElementById('schedule-title').value.trim();
       var time = document.getElementById('schedule-time').value;
       var desc = document.getElementById('schedule-desc').value.trim();
