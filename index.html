@@ -1019,6 +1019,9 @@
     }
 
     function buildScheduleModal(date, existing) {
+      // 先关闭旧弹窗，避免出现重复 DOM id
+      closeScheduleModal();
+
       var types = [
         { key: 'schedule', label: '日程', icon: '📌' },
         { key: 'birthday', label: '生日', icon: '🎂' },
@@ -1070,7 +1073,7 @@
             '</div>' +
             '<div class="flex items-center justify-between">' +
               '<label class="text-xs md:text-sm font-medium text-[#4a3f3a]">每年重复</label>' +
-              '<input id="schedule-repeat" type="checkbox" ' + (repeat === 'yearly' ? 'checked' : '') + ' class="checkbox-pink" ' + (selectedType === 'schedule' ? '' : 'disabled') + ' />' +
+              '<input id="schedule-repeat" type="checkbox" ' + (repeat === 'yearly' ? 'checked' : '') + ' class="checkbox-pink" />' +
             '</div>' +
           '</div>' +
           '<div class="flex gap-3 mt-6">' +
@@ -1107,7 +1110,7 @@
         time: time,
         description: desc,
         color: color,
-        repeat_type: type === 'schedule' ? repeat : 'yearly'
+        repeat_type: repeat
       });
     }
 
@@ -1131,7 +1134,7 @@
         description: desc,
         color: color,
         is_all_day: editingScheduleType !== 'schedule' || !time,
-        repeat_type: editingScheduleType === 'schedule' ? repeat : 'yearly'
+        repeat_type: repeat
       };
 
       var result;
