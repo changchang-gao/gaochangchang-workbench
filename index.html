@@ -866,15 +866,11 @@
       var daysInMonth = new Date(y, m, 0).getDate();
       var daysInPrevMonth = new Date(y, m - 1, 0).getDate();
 
-      // 获取当月及前后一个月的日程
-      var startStr = fmtDate(new Date(y, m - 2, 1));
-      var endStr = fmtDate(new Date(y, m + 1, 0));
+      // 获取当前工作空间所有日程（含每年重复）
       var result = await supabase
         .from('schedules')
         .select('*')
         .eq('workspace_id', currentWorkspace.id)
-        .gte('date', startStr)
-        .lte('date', endStr)
         .order('date', { ascending: true });
 
       var schedules = result.data || [];
@@ -883,6 +879,24 @@
         var s = schedules[i];
         if (!scheduleMap[s.date]) scheduleMap[s.date] = [];
         scheduleMap[s.date].push(s);
+        // 每年重复事件展开到当前显示年份前后一年
+        if (s.repeat_type === 'yearly') {
+          var parts = s.date.split('-').map(Number);
+          var eventMonth = parts[1];
+          var eventDay = parts[2];
+          for (var yy = y - 1; yy <= y + 1; yy++) {
+            var repeatedDate = yy + '-' + String(eventMonth).padStart(2, '0') + '-' + String(eventDay).padStart(2, '0');
+            if (repeatedDate !== s.date) {
+              if (!scheduleMap[repeatedDate]) scheduleMap[repeatedDate] = [];
+              // 避免同一年月日重复添加同一事件
+              var exists = false;
+              for (var k = 0; k < scheduleMap[repeatedDate].length; k++) {
+                if (scheduleMap[repeatedDate][k].id === s.id) { exists = true; break; }
+              }
+              if (!exists) scheduleMap[repeatedDate].push(s);
+            }
+          }
+        }
       }
 
       var todayStr = fmtDate();
@@ -924,7 +938,8 @@
           html += '<div class="w-full mt-1 space-y-0.5 hidden md:block">';
           for (var j = 0; j < Math.min(daySchedules.length, 2); j++) {
             var ev = daySchedules[j];
-            html += '<div class="schedule-tag" style="background-color:' + (ev.color || '#ff8fa3') + '">' + escapeHtml(ev.title) + '</div>';
+            var evIcon = { schedule: '📌', birthday: '🎂', anniversary: '💝' }[ev.type];
+            html += '<div class="schedule-tag" style="background-color:' + (ev.color || '#ff8fa3') + '">' + evIcon + ' ' + escapeHtml(ev.title) + '</div>';
           }
           if (daySchedules.length > 2) {
             html += '<div class="text-[10px] text-[#8c7e75] text-center">+' + (daySchedules.length - 2) + '</div>';
@@ -932,7 +947,8 @@
           html += '</div>';
           html += '<div class="md:hidden flex gap-0.5 mt-1 flex-wrap justify-center">';
           for (var k = 0; k < Math.min(daySchedules.length, 3); k++) {
-            html += '<span class="schedule-dot" style="background-color:' + (daySchedules[k].color || '#ff8fa3') + '"></span>';
+            var mobIcon = { schedule: '📌', birthday: '🎂', anniversary: '💝' }[daySchedules[k].type];
+            html += '<span class="text-[10px]" title="' + escapeHtml(daySchedules[k].title) + '">' + mobIcon + '</span>';
           }
           html += '</div>';
         }
@@ -987,7 +1003,71 @@
       }
       html += '</div></div>';
 
+      // 最近的重要日子（按类型分三列）
+      var upcoming = getUpcomingSchedules(schedules);
+      var byType = { schedule: [], birthday: [], anniversary: [] };
+      for (var u = 0; u < upcoming.length; u++) {
+        var e = upcoming[u];
+        if (byType[e.type]) byType[e.type].push(e);
+      }
+      var typeMeta = {
+        schedule: { label: '日程', icon: '📌', empty: '暂无待办日程' },
+        birthday: { label: '生日', icon: '🎂', empty: '暂无 upcoming 生日' },
+        anniversary: { label: '纪念日', icon: '💝', empty: '暂无 upcoming 纪念日' }
+      };
+      html += '<div class="card p-4 md:p-5 mt-4">';
+      html += '<div class="font-bold text-base md:text-lg mb-3">最近的重要日子</div>';
+      html += '<div class="grid grid-cols-1 md:grid-cols-3 gap-3">';
+      var typeOrder = ['schedule', 'birthday', 'anniversary'];
+      for (var ti = 0; ti < typeOrder.length; ti++) {
+        var tKey = typeOrder[ti];
+        var meta = typeMeta[tKey];
+        var list = byType[tKey].slice(0, 5);
+        html += '<div class="bg-[#fff8f6] rounded-xl p-3">';
+        html += '<div class="font-medium text-sm md:text-base mb-2">' + meta.icon + ' ' + meta.label + '</div>';
+        html += '<div class="space-y-2">';
+        if (list.length) {
+          for (var li = 0; li < list.length; li++) {
+            var item = list[li];
+            var daysLeft = Math.ceil((new Date(item.nextDate) - new Date(todayStr)) / 86400000);
+            var daysText = daysLeft === 0 ? '今天' : (daysLeft + ' 天后');
+            html += '<div class="flex items-center gap-2 text-xs md:text-sm">' +
+              '<span class="w-2 h-2 rounded-full flex-shrink-0" style="background-color:' + (item.color || '#ff8fa3') + '"></span>' +
+              '<span class="flex-1 min-w-0 truncate">' + escapeHtml(item.title) + '</span>' +
+              '<span class="text-[10px] md:text-xs text-[#8c7e75] flex-shrink-0">' + item.nextDate + '<br>' + daysText + '</span>' +
+            '</div>';
+          }
+        } else {
+          html += '<div class="text-xs text-[#8c7e75] py-2">' + meta.empty + '</div>';
+        }
+        html += '</div></div>';
+      }
+      html += '</div></div>';
+
       container.innerHTML = html;
+    }
+
+    function getUpcomingSchedules(schedules) {
+      var today = new Date(fmtDate());
+      var events = [];
+      for (var i = 0; i < schedules.length; i++) {
+        var s = schedules[i];
+        var parts = s.date.split('-').map(Number);
+        var eventDate = new Date(parts[0], parts[1] - 1, parts[2]);
+        var clone = {};
+        for (var key in s) clone[key] = s[key];
+        if (s.repeat_type === 'yearly') {
+          var thisYear = new Date(today.getFullYear(), parts[1] - 1, parts[2]);
+          var nextDate = thisYear >= today ? thisYear : new Date(today.getFullYear() + 1, parts[1] - 1, parts[2]);
+          clone.nextDate = fmtDate(nextDate);
+          events.push(clone);
+        } else if (eventDate >= today) {
+          clone.nextDate = s.date;
+          events.push(clone);
+        }
+      }
+      events.sort(function(a, b) { return a.nextDate.localeCompare(b.nextDate); });
+      return events;
     }
 
     function changeScheduleMonth(delta) {
