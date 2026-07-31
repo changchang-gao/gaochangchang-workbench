@@ -1116,7 +1116,7 @@
             var item = list[li];
             var daysLeft = Math.ceil((new Date(item.nextDate) - new Date(todayStr)) / 86400000);
             var daysText = daysLeft === 0 ? '今天' : (daysLeft + ' 天后');
-            html += '<div class="flex items-center gap-2 text-xs md:text-sm cursor-pointer hover:bg-white rounded-lg px-1 py-1 transition-colors" onclick="jumpToScheduleDate('' + item.nextDate + '')">' +
+            html += '<div class="flex items-center gap-2 text-xs md:text-sm cursor-pointer hover:bg-white rounded-lg px-1 py-1 transition-colors" onclick="jumpToScheduleDate(\x27' + item.nextDate + '\x27)">' +
               '<span class="w-2 h-2 rounded-full flex-shrink-0" style="background-color:' + (item.color || '#ff8fa3') + '"></span>' +
               '<span class="flex-1 min-w-0 truncate">' + escapeHtml(item.title) + '</span>' +
               '<span class="text-[10px] md:text-xs text-[#8c7e75] flex-shrink-0 text-right">' + item.nextDate + '<br>' + daysText + '</span>' +
