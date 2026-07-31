@@ -178,13 +178,22 @@
     .schedule-cell.selected { background-color: var(--bg-pink); border: 1.5px solid var(--accent-pink); }
     .schedule-cell.today .day-num { color: var(--accent-rose); font-weight: 700; }
     .schedule-cell.other-month { opacity: 0.35; }
-    .schedule-lunar { font-size: 0.65rem; color: var(--text-light); line-height: 1.2; }
+    .schedule-lunar { font-size: 0.7rem; color: var(--text-light); line-height: 1.2; }
     .schedule-dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; margin-right: 2px; flex-shrink: 0; }
     .schedule-tag {
-      font-size: 0.6rem; padding: 1px 4px; border-radius: 4px;
+      font-size: 0.75rem; padding: 2px 5px; border-radius: 4px;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       max-width: 100%; color: white;
     }
+    select {
+      appearance: none; -webkit-appearance: none;
+      background-color: #fff8f6; border: 1px solid #f3e8e2; border-radius: 0.75rem;
+      padding: 0.625rem 1.75rem 0.625rem 0.75rem;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238c7e75' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 0.5rem center;
+      outline: none; color: var(--text-main);
+    }
+    select:focus { border-color: var(--accent-pink); box-shadow: 0 0 0 3px rgba(255, 143, 163, 0.15); }
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 50;
       display: flex; align-items: center; justify-content: center; padding: 1rem;
@@ -204,9 +213,9 @@
 
     @media (max-width: 768px) {
       .schedule-cell { min-height: 3.6rem; padding: 0.25rem; }
-      .schedule-lunar { font-size: 0.55rem; }
-      .schedule-tag { font-size: 0.5rem; padding: 0 2px; }
-      .day-num { font-size: 0.875rem; }
+      .schedule-lunar { font-size: 0.6rem; }
+      .schedule-tag { font-size: 0.65rem; padding: 1px 3px; }
+      .day-num { font-size: 0.9375rem; }
     }
   </style>
 </head>
@@ -1420,6 +1429,7 @@
         lunar_date: editingScheduleType === 'birthday' ? lunarDate : null
       };
 
+      var isEdit = !!editingScheduleId;
       var result;
       if (editingScheduleId) {
         result = await supabase.from('schedules').update(payload).eq('id', editingScheduleId);
@@ -1427,9 +1437,14 @@
         result = await supabase.from('schedules').insert(payload);
       }
 
-      if (result.error) { toast(result.error.message, 'error'); return; }
+      if (result.error) {
+        console.error('saveSchedule error:', result.error);
+        toast(result.error.message || '保存失败', 'error');
+        return;
+      }
       closeScheduleModal();
-      toast('保存成功', 'success');
+      editingScheduleId = null;
+      toast(isEdit ? '更新成功' : '创建成功', 'success');
       render();
     }
 
