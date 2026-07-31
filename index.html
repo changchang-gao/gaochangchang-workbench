@@ -1141,7 +1141,10 @@ window.readLunarDate = function() {
       html += '<div class="card p-4 md:p-5">';
       html += '<div class="flex items-center justify-between mb-3">' +
         '<div class="font-bold text-base md:text-lg">' + scheduleSelectedDate + ' 的日程</div>' +
-        '<button class="btn-primary px-4 md:px-5 py-1.5 md:py-2 text-xs md:text-sm" onclick="openScheduleModal(\'' + scheduleSelectedDate + '\')">+ 新建</button>' +
+        '<div class="flex gap-2">' +
+          '<button class="btn-soft px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm" onclick="jumpToToday()">📍 回到今日</button>' +
+          '<button class="btn-primary px-4 md:px-5 py-1.5 md:py-2 text-xs md:text-sm" onclick="openScheduleModal(\'' + scheduleSelectedDate + '\')">+ 新建</button>' +
+        '</div>' +
       '</div>';
       html += '<div class="space-y-3">';
       if (selectedEvents.length) {
@@ -1274,6 +1277,14 @@ window.readLunarDate = function() {
       var parts = ds.split('-').map(Number);
       scheduleCurrentYearMonth = { year: parts[0], month: parts[1] };
       scheduleSelectedDate = ds;
+      render();
+    }
+
+    function jumpToToday() {
+      var today = fmtDate();
+      var parts = today.split('-').map(Number);
+      scheduleCurrentYearMonth = { year: parts[0], month: parts[1] };
+      scheduleSelectedDate = today;
       render();
     }
 
