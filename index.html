@@ -167,6 +167,47 @@
     .auth-tab.active-tab {
       border-bottom-color: var(--accent-rose); color: var(--accent-rose);
     }
+
+    .schedule-cell {
+      min-height: 4.5rem;
+      border-radius: 0.75rem;
+      transition: background-color 0.15s;
+      cursor: pointer;
+    }
+    .schedule-cell:hover { background-color: var(--bg-pink); }
+    .schedule-cell.selected { background-color: var(--bg-pink); border: 1.5px solid var(--accent-pink); }
+    .schedule-cell.today .day-num { color: var(--accent-rose); font-weight: 700; }
+    .schedule-cell.other-month { opacity: 0.35; }
+    .schedule-lunar { font-size: 0.65rem; color: var(--text-light); line-height: 1.2; }
+    .schedule-dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; margin-right: 2px; flex-shrink: 0; }
+    .schedule-tag {
+      font-size: 0.6rem; padding: 1px 4px; border-radius: 4px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      max-width: 100%; color: white;
+    }
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 50;
+      display: flex; align-items: center; justify-content: center; padding: 1rem;
+    }
+    .modal-content {
+      background: white; border-radius: 1.25rem; width: 92%; max-width: 420px;
+      max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+    .type-tab {
+      flex: 1; text-align: center; padding: 0.75rem 0; cursor: pointer;
+      border-bottom: 2px solid transparent; font-size: 0.875rem; color: var(--text-light);
+      transition: all 0.2s;
+    }
+    .type-tab.active {
+      border-bottom-color: var(--accent-rose); color: var(--accent-rose); font-weight: 500;
+    }
+
+    @media (max-width: 768px) {
+      .schedule-cell { min-height: 3.6rem; padding: 0.25rem; }
+      .schedule-lunar { font-size: 0.55rem; }
+      .schedule-tag { font-size: 0.5rem; padding: 0 2px; }
+      .day-num { font-size: 0.875rem; }
+    }
   </style>
 </head>
 <body class="h-screen overflow-hidden flex">
@@ -232,6 +273,10 @@
           <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">📝</div>
           <span class="hidden md:block font-medium">备忘录</span>
         </div>
+        <div class="sidebar-item flex items-center gap-3 px-1.5 md:px-3 py-2.5 md:py-3 rounded-xl" data-view="schedule" onclick="switchView('schedule')">
+          <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">📅</div>
+          <span class="hidden md:block font-medium">我的日程</span>
+        </div>
         <div class="sidebar-item flex items-center gap-3 px-1.5 md:px-3 py-2.5 md:py-3 rounded-xl" data-view="daily" onclick="switchView('daily')">
           <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">🧒</div>
           <span class="hidden md:block font-medium">七宝每日任务</span>
@@ -285,6 +330,10 @@
     var currentUser = null;
     var authMode = 'login';
     var realtimeChannel = null;
+    var scheduleSelectedDate = fmtDate();
+    var scheduleCurrentYearMonth = { year: new Date().getFullYear(), month: new Date().getMonth() + 1 };
+    var editingScheduleId = null;
+    var editingScheduleType = 'schedule';
 
     // ==================== 工具函数 ====================
     function fmtDate(d) {
@@ -296,6 +345,132 @@
       d = d || new Date();
       return d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
     }
+
+    function fmtCNMonthYear(year, month) {
+      return year + ' 年 ' + month + ' 月';
+    }
+
+    // ==================== 农历/节气工具（1900-2100）====================
+    (function() {
+      // 农历数据：每个元素 5 位十六进制，依次表示：闰月、每个月大小、春节所在公历月日
+      // 简化数据，覆盖 1900-2100
+      var lunarInfo = [
+        0x04bd8,0x04ae0,0x0a570,0x054d5,0x0d260,0x0d950,0x16554,0x056a0,0x09ad0,0x055d2,
+        0x04ae0,0x0a5b6,0x0a4d0,0x0d250,0x1d255,0x0b540,0x0d6a0,0x0ada2,0x095b0,0x14977,
+        0x04970,0x0a4b0,0x0b4b5,0x06a50,0x06d40,0x1ab54,0x02b60,0x09570,0x052f2,0x04970,
+        0x65682,0x0d4a0,0x0ea50,0x06e95,0x05ad0,0x02b60,0x186e3,0x092e0,0x1c8d7,0x0c950,
+        0x0d4a0,0x1d8a6,0x0b550,0x056a0,0x1a5b4,0x025d0,0x092d0,0x0d2b2,0x0a950,0x0b557,
+        0x06ca0,0x0b550,0x15355,0x04da0,0x0a5d0,0x14573,0x052d0,0x0a9a8,0x0e950,0x06aa0,
+        0x0aea6,0x0ab50,0x04b60,0x0aae4,0x0a570,0x05260,0x0f263,0x0d950,0x05b57,0x056a0,
+        0x096d0,0x04dd5,0x04ad0,0x0a4d0,0x0d4d4,0x0d250,0x0d558,0x0b540,0x0b5a0,0x195a6,
+        0x095b0,0x049b0,0x0a974,0x0a4b0,0x0b27a,0x06a50,0x06d40,0x0af46,0x0ab60,0x09570,
+        0x04af5,0x04970,0x064b0,0x074a3,0x0ea50,0x06b58,0x055c0,0x0ab60,0x096d5,0x092e0,
+        0x0c960,0x0d954,0x0d4a0,0x0da50,0x07552,0x056a0,0x0abb7,0x025d0,0x092d0,0x0cab5,
+        0x0a950,0x0b4a0,0x0baa4,0x0ad50,0x055d9,0x04ba0,0x0a5b0,0x15176,0x052b0,0x0a930,
+        0x07954,0x06aa0,0x0ad50,0x05b52,0x04b60,0x0a6e6,0x0a4e0,0x0d260,0x0ea65,0x0d530,
+        0x05aa0,0x076a3,0x096d0,0x04bd7,0x04ad0,0x0a4d0,0x1d0b6,0x0d250,0x0d520,0x0dd45,
+        0x0b5a0,0x056d0,0x055b2,0x049b0,0x0a577,0x0a4b0,0x0aa50,0x1b255,0x06d20,0x0ada0,
+        0x14b63,0x09370,0x049f8,0x04970,0x064b0,0x168a6,0x0ea50,0x06b20,0x1a6c4,0x0aae0,
+        0x0a2e0,0x0d2e3,0x0c960,0x0d557,0x0d4a0,0x0da50,0x05d55,0x056a0,0x0a6d0,0x055d4,
+        0x052d0,0x0a9b8,0x0a950,0x0b4a0,0x0b6a6,0x0ad50,0x055a0,0x0aba4,0x0a5b0,0x052b0,
+        0x0b273,0x06930,0x07337,0x06aa0,0x0ad50,0x14b55,0x04b60,0x0a570,0x054e4,0x0d160,
+        0x0e968,0x0d520,0x0daa0,0x16aa6,0x056d0,0x04ae0,0x0a9d4,0x0a2d0,0x0d150,0x0f252,
+        0x0d520
+      ];
+
+      var Gan = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
+      var Zhi = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
+      var Animals = ['鼠','牛','虎','兔','龙','蛇','马','羊','猴','鸡','狗','猪'];
+      var solarTerm = ['小寒','大寒','立春','雨水','惊蛰','春分','清明','谷雨','立夏','小满','芒种','夏至','小暑','大暑','立秋','处暑','白露','秋分','寒露','霜降','立冬','小雪','大雪','冬至'];
+      var sTermInfo = [0,21208,42467,63836,85337,107014,128867,150921,173149,195551,218072,240693,263343,285989,308563,331033,353350,375494,397447,419210,440795,462224,483532,504758];
+      var nStr1 = ['日','一','二','三','四','五','六','七','八','九','十'];
+      var nStr2 = ['初','十','廿','卅',' '];
+      var monthName = ['正','二','三','四','五','六','七','八','九','十','冬','腊'];
+
+      function lYearDays(y) {
+        var i, sum = 348;
+        for (i = 0x8000; i > 0x8; i >>= 1) sum += (lunarInfo[y - 1900] & i) ? 1 : 0;
+        return sum + leapDays(y);
+      }
+      function leapDays(y) {
+        if (leapMonth(y)) return (lunarInfo[y - 1900] & 0x10000) ? 30 : 29;
+        return 0;
+      }
+      function leapMonth(y) {
+        return lunarInfo[y - 1900] & 0xf;
+      }
+      function monthDays(y, m) {
+        return (lunarInfo[y - 1900] & (0x10000 >> m)) ? 30 : 29;
+      }
+      function solarDays(y, m) {
+        if (m === 1 || m === 3 || m === 5 || m === 7 || m === 8 || m === 10 || m === 12) return 31;
+        if (m === 4 || m === 6 || m === 9 || m === 11) return 30;
+        return ((y % 4 === 0 && y % 100 !== 0) || y % 400 === 0) ? 29 : 28;
+      }
+      function cyclical(num) { return Gan[num % 10] + Zhi[num % 12]; }
+
+      window.getLunarDate = function(date) {
+        var y = date.getFullYear(), m = date.getMonth() + 1, d = date.getDate();
+        if (y < 1900 || y > 2100) return '';
+        var baseDate = new Date(1900, 0, 31);
+        var objDate = new Date(y, m - 1, d);
+        var offset = Math.floor((objDate - baseDate) / 86400000);
+        var iYear, daysOfYear = 0;
+        for (iYear = 1900; iYear < 2101 && offset > 0; iYear++) {
+          daysOfYear = lYearDays(iYear);
+          offset -= daysOfYear;
+        }
+        if (offset < 0) { offset += daysOfYear; iYear--; }
+        var lunarYear = iYear;
+        var leap = leapMonth(lunarYear);
+        var isLeap = false;
+        var iMonth, daysOfMonth = 0;
+        for (iMonth = 1; iMonth < 13 && offset > 0; iMonth++) {
+          if (leap > 0 && iMonth === leap + 1 && !isLeap) { --iMonth; isLeap = true; daysOfMonth = leapDays(lunarYear); }
+          else { daysOfMonth = monthDays(lunarYear, iMonth); }
+          if (isLeap && iMonth === leap + 1) isLeap = false;
+          offset -= daysOfMonth;
+        }
+        if (offset === 0 && leap > 0 && iMonth === leap + 1) {
+          if (isLeap) { isLeap = false; }
+          else { isLeap = true; --iMonth; }
+        }
+        if (offset < 0) { offset += daysOfMonth; --iMonth; }
+        var lunarMonth = iMonth;
+        var lunarDay = offset + 1;
+        var dayStr = nStr2[Math.floor(lunarDay / 10)] + nStr1[lunarDay % 10];
+        if (lunarDay === 10) dayStr = '初十';
+        if (lunarDay === 20) dayStr = '二十';
+        if (lunarDay === 30) dayStr = '三十';
+        return { year: lunarYear, month: lunarMonth, day: lunarDay, monthName: monthName[lunarMonth - 1], dayStr: dayStr, isLeap: isLeap };
+      };
+
+      window.getSolarTerm = function(date) {
+        var y = date.getFullYear(), m = date.getMonth() + 1, d = date.getDate();
+        if (y < 1900 || y > 2100) return '';
+        var base = new Date(1900, 0, 6, 2, 5);
+        var idx1 = (m - 1) * 2;
+        var term1 = new Date(base.getTime() + (y - 1900) * 31556926000 + sTermInfo[idx1] * 60000);
+        var term2 = new Date(base.getTime() + (y - 1900) * 31556926000 + sTermInfo[idx1 + 1] * 60000);
+        if (d === term1.getDate() && m === term1.getMonth() + 1) return solarTerm[idx1];
+        if (d === term2.getDate() && m === term2.getMonth() + 1) return solarTerm[idx1 + 1];
+        // 固定节日
+        var md = String(m).padStart(2, '0') + String(d).padStart(2, '0');
+        var festivals = {
+          '0101': '元旦', '0214': '情人节', '0308': '妇女节', '0312': '植树节',
+          '0401': '愚人节', '0501': '劳动节', '0504': '青年节', '0601': '儿童节',
+          '0701': '建党节', '0801': '建军节', '0910': '教师节', '1001': '国庆',
+          '1224': '平安夜', '1225': '圣诞节'
+        };
+        return festivals[md] || '';
+      };
+
+      window.getLunarFestival = function(lunar) {
+        var md = String(lunar.month).padStart(2, '0') + String(lunar.day).padStart(2, '0');
+        var festivals = { '0101': '春节', '0115': '元宵', '0505': '端午', '0707': '七夕', '0815': '中秋', '0909': '重阳', '1208': '腊八' };
+        return festivals[md] || '';
+      };
+    })();
 
     function escapeHtml(text) {
       if (!text) return '';
@@ -469,7 +644,7 @@
 
       realtimeChannel = supabase.channel('ws-' + currentWorkspace.id);
 
-      var tables = ['memos', 'daily_templates', 'daily_task_instances', 'swimming_records', 'plans'];
+      var tables = ['memos', 'daily_templates', 'daily_task_instances', 'swimming_records', 'plans', 'schedules'];
       for (var i = 0; i < tables.length; i++) {
         (function(tbl) {
           realtimeChannel.on('postgres_changes',
@@ -511,6 +686,7 @@
       var titles = {
         home: ['畅畅专属工作台', '温柔坚持，复利成长'],
         memo: ['备忘录 📝', '记录日常备忘、零散小事，完成一项就打个勾。'],
+        schedule: ['我的日程 📅', '记录生日、纪念日和重要日子，让美好不被遗忘。'],
         daily: ['七宝每日任务 🧒', '选择日期，自动生成每日任务，完成即打卡。'],
         swim: ['游泳练习 🏊', '记录每一次游泳的日期与时长，见证坚持的力量。'],
         plan: ['未来计划 🚀', '把大目标拆成子任务，进度一点点推进。'],
@@ -521,6 +697,7 @@
 
       if (currentView === 'home') renderHome(container);
       else if (currentView === 'memo') renderMemo(container);
+      else if (currentView === 'schedule') renderSchedule(container);
       else if (currentView === 'daily') renderDaily(container);
       else if (currentView === 'swim') renderSwim(container);
       else if (currentView === 'plan') renderPlan(container);
@@ -574,6 +751,10 @@
             '<div class="flex items-center gap-2 md:gap-3 mb-2"><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#d6f5e6] flex items-center justify-center text-base md:text-lg">📝</div><div class="font-bold text-base md:text-lg">备忘录</div></div>' +
             '<div class="text-xs md:text-sm text-[#8c7e75]">记录零散小事 · ' + memos.length + ' 条</div>' +
           '</div>' +
+          '<div class="card p-4 md:p-5 cursor-pointer" onclick="switchView(\'schedule\')">' +
+            '<div class="flex items-center gap-2 md:gap-3 mb-2"><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#fce7f3] flex items-center justify-center text-base md:text-lg">📅</div><div class="font-bold text-base md:text-lg">我的日程</div></div>' +
+            '<div class="text-xs md:text-sm text-[#8c7e75]">生日、纪念日、重要日子</div>' +
+          '</div>' +
           '<div class="card p-4 md:p-5 cursor-pointer" onclick="switchView(\'daily\')">' +
             '<div class="flex items-center gap-2 md:gap-3 mb-2"><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#dbeafe] flex items-center justify-center text-base md:text-lg">🧒</div><div class="font-bold text-base md:text-lg">七宝每日任务</div></div>' +
             '<div class="text-xs md:text-sm text-[#8c7e75]">今日待完成 · 查看日历</div>' +
@@ -599,10 +780,19 @@
       var result = await supabase
         .from('memos')
         .select('*')
-        .eq('workspace_id', currentWorkspace.id)
-        .order('created_at', { ascending: false });
+        .eq('workspace_id', currentWorkspace.id);
 
       var memos = result.data || [];
+
+      // 未勾选保持原顺序，已勾选按 completed_at 倒序排在后面
+      var uncompleted = [], completed = [];
+      for (var i = 0; i < memos.length; i++) {
+        if (memos[i].completed) completed.push(memos[i]);
+        else uncompleted.push(memos[i]);
+      }
+      uncompleted.sort(function(a, b) { return (b.created_at || '').localeCompare(a.created_at || ''); });
+      completed.sort(function(a, b) { return (b.completed_at || '').localeCompare(a.completed_at || ''); });
+      memos = uncompleted.concat(completed);
       var html = '';
 
       html += '<div class="card p-4 md:p-5 mb-6"><div class="flex flex-col md:flex-row gap-2 md:gap-3">' +
@@ -664,6 +854,305 @@
     async function deleteMemo(id) {
       var result = await supabase.from('memos').delete().eq('id', id);
       if (result.error) { toast(result.error.message, 'error'); return; }
+      render();
+    }
+
+    // ==================== 我的日程 ====================
+    async function renderSchedule(container) {
+      var y = scheduleCurrentYearMonth.year;
+      var m = scheduleCurrentYearMonth.month;
+      var firstDay = new Date(y, m - 1, 1);
+      var startOffset = firstDay.getDay(); // 0=周日
+      var daysInMonth = new Date(y, m, 0).getDate();
+      var daysInPrevMonth = new Date(y, m - 1, 0).getDate();
+
+      // 获取当月及前后一个月的日程
+      var startStr = fmtDate(new Date(y, m - 2, 1));
+      var endStr = fmtDate(new Date(y, m + 1, 0));
+      var result = await supabase
+        .from('schedules')
+        .select('*')
+        .eq('workspace_id', currentWorkspace.id)
+        .gte('date', startStr)
+        .lte('date', endStr)
+        .order('date', { ascending: true });
+
+      var schedules = result.data || [];
+      var scheduleMap = {};
+      for (var i = 0; i < schedules.length; i++) {
+        var s = schedules[i];
+        if (!scheduleMap[s.date]) scheduleMap[s.date] = [];
+        scheduleMap[s.date].push(s);
+      }
+
+      var todayStr = fmtDate();
+
+      var html = '';
+      html += '<div class="card p-3 md:p-5 mb-4">';
+      html += '<div class="flex items-center justify-between mb-4">' +
+        '<button class="text-[#8c7e75] hover:text-[#ff5c7f] border-none bg-transparent cursor-pointer text-lg px-2" onclick="changeScheduleMonth(-1)">‹</button>' +
+        '<div class="font-bold text-sm md:text-base">' + fmtCNMonthYear(y, m) + '</div>' +
+        '<button class="text-[#8c7e75] hover:text-[#ff5c7f] border-none bg-transparent cursor-pointer text-lg px-2" onclick="changeScheduleMonth(1)">›</button>' +
+      '</div>';
+      html += '<div class="grid grid-cols-7 gap-1 text-center text-xs text-[#8c7e75] mb-2">' +
+        '<div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div></div>';
+      html += '<div class="grid grid-cols-7 gap-1">';
+
+      // 上月尾部
+      for (var i = 0; i < startOffset; i++) {
+        var pd = daysInPrevMonth - startOffset + 1 + i;
+        html += '<div class="schedule-cell other-month p-1 md:p-1.5 flex flex-col items-center"><span class="day-num text-sm">' + pd + '</span></div>';
+      }
+
+      // 当月
+      for (var d = 1; d <= daysInMonth; d++) {
+        var ds = y + '-' + String(m).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+        var dt = new Date(y, m - 1, d);
+        var lunar = getLunarDate(dt);
+        var term = getSolarTerm(dt);
+        var lunarFestival = getLunarFestival(lunar);
+        var displayText = lunarFestival || term || lunar.dayStr;
+        var isToday = ds === todayStr;
+        var isSelected = ds === scheduleSelectedDate;
+        var daySchedules = scheduleMap[ds] || [];
+
+        html += '<div class="schedule-cell ' + (isToday ? 'today ' : '') + (isSelected ? 'selected ' : '') + 'p-1 md:p-1.5 flex flex-col items-center relative" onclick="selectScheduleDate(\'' + ds + '\')">' +
+          '<span class="day-num text-sm md:text-base">' + d + '</span>' +
+          '<span class="schedule-lunar">' + escapeHtml(displayText) + '</span>';
+
+        if (daySchedules.length) {
+          html += '<div class="w-full mt-1 space-y-0.5 hidden md:block">';
+          for (var j = 0; j < Math.min(daySchedules.length, 2); j++) {
+            var ev = daySchedules[j];
+            html += '<div class="schedule-tag" style="background-color:' + (ev.color || '#ff8fa3') + '">' + escapeHtml(ev.title) + '</div>';
+          }
+          if (daySchedules.length > 2) {
+            html += '<div class="text-[10px] text-[#8c7e75] text-center">+' + (daySchedules.length - 2) + '</div>';
+          }
+          html += '</div>';
+          html += '<div class="md:hidden flex gap-0.5 mt-1 flex-wrap justify-center">';
+          for (var k = 0; k < Math.min(daySchedules.length, 3); k++) {
+            html += '<span class="schedule-dot" style="background-color:' + (daySchedules[k].color || '#ff8fa3') + '"></span>';
+          }
+          html += '</div>';
+        }
+        html += '</div>';
+      }
+
+      // 下月头部
+      var remaining = (7 - ((startOffset + daysInMonth) % 7)) % 7;
+      for (var n = 1; n <= remaining; n++) {
+        html += '<div class="schedule-cell other-month p-1 md:p-1.5 flex flex-col items-center"><span class="day-num text-sm">' + n + '</span></div>';
+      }
+
+      html += '</div>';
+      html += '<div class="mt-3 flex items-center justify-between">' +
+        '<div class="text-[10px] md:text-xs text-[#8c7e75]">选中日期：' + scheduleSelectedDate + '</div>' +
+        '<button class="btn-soft px-3 md:px-4 py-1.5 text-xs md:text-sm" onclick="openScheduleModal(\'' + scheduleSelectedDate + '\')">+ 新建日程</button>' +
+      '</div>';
+      html += '</div>';
+
+      // 选中日期事件列表
+      var selectedEvents = scheduleMap[scheduleSelectedDate] || [];
+      html += '<div class="card p-4 md:p-5">';
+      html += '<div class="flex items-center justify-between mb-3">' +
+        '<div class="font-bold text-base md:text-lg">' + scheduleSelectedDate + ' 的日程</div>' +
+        '<button class="btn-primary px-4 md:px-5 py-1.5 md:py-2 text-xs md:text-sm" onclick="openScheduleModal(\'' + scheduleSelectedDate + '\')">+ 新建</button>' +
+      '</div>';
+      html += '<div class="space-y-3">';
+      if (selectedEvents.length) {
+        for (var e = 0; e < selectedEvents.length; e++) {
+          var ev = selectedEvents[e];
+          var typeLabel = { schedule: '日程', birthday: '生日', anniversary: '纪念日' }[ev.type];
+          var typeIcon = { schedule: '📌', birthday: '🎂', anniversary: '💝' }[ev.type];
+          html += '<div class="flex items-start gap-2 md:gap-3 p-3 rounded-xl bg-[#fff8f6]">' +
+            '<div class="w-2 h-2 mt-1.5 rounded-full flex-shrink-0" style="background-color:' + (ev.color || '#ff8fa3') + '"></div>' +
+            '<div class="flex-1 min-w-0">' +
+              '<div class="flex items-center gap-2 flex-wrap">' +
+                '<span class="text-base">' + typeIcon + '</span>' +
+                '<span class="font-medium text-sm md:text-base">' + escapeHtml(ev.title) + '</span>' +
+                '<span class="text-[10px] md:text-xs px-2 py-0.5 rounded-full bg-white text-[#8c7e75]">' + typeLabel + '</span>' +
+              '</div>' +
+              '<div class="text-[10px] md:text-xs text-[#8c7e75] mt-1">' + (ev.time || '全天') + (ev.repeat_type === 'yearly' ? ' · 每年重复' : '') + '</div>' +
+              (ev.description ? '<div class="text-xs md:text-sm text-[#4a3f3a] mt-1">' + escapeHtml(ev.description) + '</div>' : '') +
+            '</div>' +
+            '<div class="flex gap-1 flex-shrink-0">' +
+              '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-xs border-none bg-transparent cursor-pointer" onclick="openScheduleModal(\'' + scheduleSelectedDate + '\', \'' + ev.id + '\')">编辑</button>' +
+              '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-xs border-none bg-transparent cursor-pointer" onclick="deleteSchedule(\'' + ev.id + '\')">删除</button>' +
+            '</div>' +
+          '</div>';
+        }
+      } else {
+        html += '<div class="empty-state">这一天还没有日程，点击右上角添加吧~</div>';
+      }
+      html += '</div></div>';
+
+      container.innerHTML = html;
+    }
+
+    function changeScheduleMonth(delta) {
+      var d = new Date(scheduleCurrentYearMonth.year, scheduleCurrentYearMonth.month - 1 + delta, 1);
+      scheduleCurrentYearMonth = { year: d.getFullYear(), month: d.getMonth() + 1 };
+      render();
+    }
+
+    function selectScheduleDate(ds) {
+      scheduleSelectedDate = ds;
+      render();
+    }
+
+    function openScheduleModal(date, scheduleId) {
+      editingScheduleId = scheduleId || null;
+      var isEdit = !!scheduleId;
+      var existing = null;
+      if (isEdit) {
+        supabase.from('schedules').select('*').eq('id', scheduleId).single().then(function(res) {
+          if (res.error) { toast('加载失败', 'error'); return; }
+          existing = res.data;
+          editingScheduleType = existing.type;
+          buildScheduleModal(date, existing);
+        });
+      } else {
+        editingScheduleType = 'schedule';
+        buildScheduleModal(date, null);
+      }
+    }
+
+    function buildScheduleModal(date, existing) {
+      var types = [
+        { key: 'schedule', label: '日程', icon: '📌' },
+        { key: 'birthday', label: '生日', icon: '🎂' },
+        { key: 'anniversary', label: '纪念日', icon: '💝' }
+      ];
+      var selectedType = existing ? existing.type : editingScheduleType;
+      var title = existing ? existing.title : '';
+      var time = existing ? (existing.time || '') : '';
+      var description = existing ? (existing.description || '') : '';
+      var color = existing ? (existing.color || '#ff8fa3') : '#ff8fa3';
+      var repeat = existing ? (existing.repeat_type || 'none') : (selectedType === 'schedule' ? 'none' : 'yearly');
+      var dateVal = existing ? existing.date : date;
+      var placeholders = { schedule: '请输入事件标题', birthday: '寿星姓名', anniversary: '请输入纪念内容' };
+
+      var html = '<div class="modal-overlay" id="schedule-modal" onclick="if(event.target===this)closeScheduleModal()">' +
+        '<div class="modal-content p-4 md:p-6 fade-in">' +
+          '<div class="flex items-center justify-between mb-4">' +
+            '<div class="font-bold text-base md:text-lg">' + (existing ? '编辑' : '创建') + '日程</div>' +
+            '<button class="text-[#8c7e75] hover:text-[#ff5c7f] border-none bg-transparent cursor-pointer text-xl" onclick="closeScheduleModal()">×</button>' +
+          '</div>' +
+          '<div class="flex mb-4 border-b border-[#f3e8e2]">';
+      for (var i = 0; i < types.length; i++) {
+        var t = types[i];
+        html += '<div class="type-tab ' + (t.key === selectedType ? 'active' : '') + '" onclick="switchScheduleType(\'' + t.key + '\')">' + t.icon + ' ' + t.label + '</div>';
+      }
+      html += '</div>' +
+          '<div class="space-y-4">' +
+            '<div>' +
+              '<label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">' + placeholders[selectedType] + '</label>' +
+              '<input id="schedule-title" type="text" value="' + escapeHtml(title) + '" placeholder="' + placeholders[selectedType] + '" class="w-full text-sm md:text-base" />' +
+            '</div>' +
+            '<div class="grid grid-cols-2 gap-3">' +
+              '<div>' +
+                '<label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">日期</label>' +
+                '<input id="schedule-date" type="date" value="' + dateVal + '" class="w-full text-sm md:text-base" />' +
+              '</div>' +
+              '<div id="schedule-time-wrapper" style="' + (selectedType === 'schedule' ? '' : 'display:none') + '">' +
+                '<label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">时间</label>' +
+                '<input id="schedule-time" type="time" value="' + time + '" class="w-full text-sm md:text-base" />' +
+              '</div>' +
+            '</div>' +
+            '<div>' +
+              '<label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">备注</label>' +
+              '<textarea id="schedule-desc" rows="2" placeholder="写点什么..." class="w-full text-sm md:text-base resize-none">' + escapeHtml(description) + '</textarea>' +
+            '</div>' +
+            '<div class="flex items-center gap-3">' +
+              '<label class="text-xs md:text-sm font-medium text-[#4a3f3a]">标记颜色</label>' +
+              '<input id="schedule-color" type="color" value="' + color + '" class="w-10 h-10 p-0 border-none rounded cursor-pointer" />' +
+            '</div>' +
+            '<div class="flex items-center justify-between">' +
+              '<label class="text-xs md:text-sm font-medium text-[#4a3f3a]">每年重复</label>' +
+              '<input id="schedule-repeat" type="checkbox" ' + (repeat === 'yearly' ? 'checked' : '') + ' class="checkbox-pink" ' + (selectedType === 'schedule' ? '' : 'disabled') + ' />' +
+            '</div>' +
+          '</div>' +
+          '<div class="flex gap-3 mt-6">' +
+            '<button class="btn-primary flex-1 py-2.5 text-sm md:text-base" onclick="saveSchedule()">保存</button>' +
+            (editingScheduleId ? '<button class="btn-soft flex-1 py-2.5 text-sm md:text-base" onclick="deleteSchedule(\'' + editingScheduleId + '\')">删除</button>' : '') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+      var modal = document.createElement('div');
+      modal.id = 'schedule-modal-container';
+      modal.innerHTML = html;
+      document.body.appendChild(modal);
+    }
+
+    function closeScheduleModal() {
+      var el = document.getElementById('schedule-modal-container');
+      if (el) el.remove();
+    }
+
+    function switchScheduleType(type) {
+      editingScheduleType = type;
+      var title = document.getElementById('schedule-title').value;
+      var date = document.getElementById('schedule-date').value;
+      var time = document.getElementById('schedule-time').value;
+      var desc = document.getElementById('schedule-desc').value;
+      var color = document.getElementById('schedule-color').value;
+      var repeat = document.getElementById('schedule-repeat').checked ? 'yearly' : 'none';
+      buildScheduleModal(date, {
+        id: editingScheduleId,
+        type: type,
+        title: title,
+        date: date,
+        time: time,
+        description: desc,
+        color: color,
+        repeat_type: type === 'schedule' ? repeat : 'yearly'
+      });
+    }
+
+    async function saveSchedule() {
+      var title = document.getElementById('schedule-title').value.trim();
+      var date = document.getElementById('schedule-date').value;
+      var time = document.getElementById('schedule-time').value;
+      var desc = document.getElementById('schedule-desc').value.trim();
+      var color = document.getElementById('schedule-color').value;
+      var repeat = document.getElementById('schedule-repeat').checked ? 'yearly' : 'none';
+      if (!title) { toast('请输入标题', 'error'); return; }
+      if (!date) { toast('请选择日期', 'error'); return; }
+
+      var payload = {
+        workspace_id: currentWorkspace.id,
+        created_by: currentUser.id,
+        type: editingScheduleType,
+        title: title,
+        date: date,
+        time: editingScheduleType === 'schedule' ? time : null,
+        description: desc,
+        color: color,
+        is_all_day: editingScheduleType !== 'schedule' || !time,
+        repeat_type: editingScheduleType === 'schedule' ? repeat : 'yearly'
+      };
+
+      var result;
+      if (editingScheduleId) {
+        result = await supabase.from('schedules').update(payload).eq('id', editingScheduleId);
+      } else {
+        result = await supabase.from('schedules').insert(payload);
+      }
+
+      if (result.error) { toast(result.error.message, 'error'); return; }
+      closeScheduleModal();
+      toast('保存成功', 'success');
+      render();
+    }
+
+    async function deleteSchedule(id) {
+      if (!confirm('确定要删除这个日程吗？')) return;
+      var result = await supabase.from('schedules').delete().eq('id', id);
+      if (result.error) { toast(result.error.message, 'error'); return; }
+      closeScheduleModal();
+      toast('已删除', 'info');
       render();
     }
 
