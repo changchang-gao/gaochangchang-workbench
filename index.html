@@ -347,7 +347,10 @@
     // ==================== 工具函数 ====================
     function fmtDate(d) {
       d = d || new Date();
-      return d.toISOString().split('T')[0];
+      var year = d.getFullYear();
+      var month = String(d.getMonth() + 1).padStart(2, '0');
+      var day = String(d.getDate()).padStart(2, '0');
+      return year + '-' + month + '-' + day;
     }
 
     function fmtCNDate(d) {
@@ -533,6 +536,86 @@
           opts += '<option value="' + d + '">' + dayStr + '</option>';
         }
         return opts;
+      };
+
+      window.initLunarDatePicker = function(existing) {
+        var ly = document.getElementById('lunar-year');
+        var lm = document.getElementById('lunar-month');
+        var ld = document.getElementById('lunar-day');
+        if (!ly || !lm || !ld) return;
+
+        var lunar = null;
+        if (existing && existing.is_lunar && existing.lunar_date) {
+          var parts = existing.lunar_date.split('-').map(Number);
+          lunar = { year: parts[0], month: parts[1], day: parts[2], isLeap: false };
+        } else if (existing && existing.date) {
+          lunar = getLunarDate(new Date(existing.date));
+        } else {
+          lunar = getLunarDate(new Date());
+        }
+
+        ly.value = lunar.year;
+        lm.innerHTML = lunarMonthOptions(lunar.year);
+        var leap = false;
+        if (existing && existing.is_lunar && existing.lunar_date) {
+          var solar = lunarToSolar(lunar.year, lunar.month, lunar.day, false);
+          if (!solar) {
+            solar = lunarToSolar(lunar.year, lunar.month, lunar.day, true);
+            leap = true;
+          }
+        }
+        lm.value = leap ? (lunar.month + '-leap') : String(lunar.month);
+        ld.innerHTML = lunarDayOptions(lunar.year, lunar.month, leap);
+        ld.value = lunar.day;
+
+        ly.onchange = function() {
+          var year = parseInt(ly.value);
+          lm.innerHTML = lunarMonthOptions(year);
+          lm.value = '1';
+          ld.innerHTML = lunarDayOptions(year, 1, false);
+          ld.value = 1;
+        };
+        lm.onchange = function() {
+          var val = lm.value;
+          var isLeap = val.indexOf('-leap') > -1;
+          var month = parseInt(val);
+          var year = parseInt(ly.value);
+          ld.innerHTML = lunarDayOptions(year, month, isLeap);
+          if (parseInt(ld.value) > ld.options.length) ld.value = ld.options.length;
+        };
+
+        var checkbox = document.getElementById('schedule-is-lunar');
+        if (checkbox && existing && existing.is_lunar) {
+          checkbox.checked = true;
+          toggleLunarDatePicker();
+        }
+      };
+
+            window.toggleLunarDatePicker = function() {
+        var checkbox = document.getElementById('schedule-is-lunar');
+        var dateInput = document.getElementById('schedule-date');
+        var lunarSelects = document.getElementById('schedule-lunar-selects');
+        if (!checkbox || !dateInput || !lunarSelects) return;
+        if (checkbox.checked) {
+          dateInput.classList.add('hidden');
+          lunarSelects.classList.remove('hidden');
+        } else {
+          dateInput.classList.remove('hidden');
+          lunarSelects.classList.add('hidden');
+        }
+      };
+
+window.readLunarDate = function() {
+        var ly = document.getElementById('lunar-year').value;
+        var lmVal = document.getElementById('lunar-month').value;
+        var ld = document.getElementById('lunar-day').value;
+        var month = parseInt(lmVal);
+        var isLeap = lmVal.indexOf('-leap') > -1;
+        var solar = lunarToSolar(parseInt(ly), month, parseInt(ld), isLeap);
+        return {
+          lunarDate: ly + '-' + String(month).padStart(2, '0') + '-' + String(ld).padStart(2, '0'),
+          solarDate: solar ? fmtDate(solar) : ''
+        };
       };
     })();
 
@@ -953,8 +1036,8 @@
             if (s.is_lunar && s.lunar_date) {
               var lp = s.lunar_date.split('-').map(Number);
               var solar = lunarToSolar(yy, lp[1], lp[2], false);
-              // 若普通月不匹配，尝试闰月
-              if (!solar || fmtDate(solar) !== s.date) {
+              // 若普通月转换失败，尝试闰月
+              if (!solar) {
                 solar = lunarToSolar(yy, lp[1], lp[2], true);
               }
               repeatedDate = solar ? fmtDate(solar) : '';
@@ -1149,8 +1232,8 @@
             if (!thisYearSolar || fmtDate(thisYearSolar) < fmtDate(today)) {
               thisYearSolar = lunarToSolar(today.getFullYear() + 1, lp[1], lp[2], false);
             }
-            // 尝试闰月
-            if (!thisYearSolar || fmtDate(thisYearSolar) < fmtDate(today)) {
+            // 若普通月转换失败，尝试闰月
+            if (!thisYearSolar) {
               thisYearSolar = lunarToSolar(today.getFullYear(), lp[1], lp[2], true);
             }
             if (!thisYearSolar || fmtDate(thisYearSolar) < fmtDate(today)) {
@@ -1321,8 +1404,9 @@
       if (lunarSelects && !lunarSelects.classList.contains('hidden')) {
         isLunar = true;
         var ly = document.getElementById('lunar-year').value;
-        var lm = document.getElementById('lunar-month').value;
+        var lmVal = document.getElementById('lunar-month').value;
         var ld = document.getElementById('lunar-day').value;
+        var lm = parseInt(lmVal);
         lunarDate = ly + '-' + String(lm).padStart(2, '0') + '-' + String(ld).padStart(2, '0');
       }
       buildScheduleModal(date, {
@@ -1339,124 +1423,52 @@
       });
     }
 
-    function toggleLunarDatePicker() {
-      var checkbox = document.getElementById('schedule-is-lunar');
-      var dateInput = document.getElementById('schedule-date');
-      var lunarSelects = document.getElementById('schedule-lunar-selects');
-      if (!checkbox || !dateInput || !lunarSelects) return;
-      if (checkbox.checked) {
-        dateInput.classList.add('hidden');
-        lunarSelects.classList.remove('hidden');
-      } else {
-        dateInput.classList.remove('hidden');
-        lunarSelects.classList.add('hidden');
-      }
-    }
-
-    function initLunarDatePicker(existing) {
-      var ly = document.getElementById('lunar-year');
-      var lm = document.getElementById('lunar-month');
-      var ld = document.getElementById('lunar-day');
-      if (!ly || !lm || !ld) return;
-
-      var lunar = null;
-      if (existing && existing.is_lunar && existing.lunar_date) {
-        var parts = existing.lunar_date.split('-').map(Number);
-        lunar = { year: parts[0], month: parts[1], day: parts[2], isLeap: false };
-      } else if (existing && existing.date) {
-        lunar = getLunarDate(new Date(existing.date));
-      } else {
-        lunar = getLunarDate(new Date());
-      }
-
-      ly.value = lunar.year;
-      lm.innerHTML = lunarMonthOptions(lunar.year);
-      var leap = false;
-      if (existing && existing.is_lunar && existing.lunar_date) {
-        // 检查是否闰月：通过反查判断
-        var solar = lunarToSolar(lunar.year, lunar.month, lunar.day, false);
-        if (!solar || fmtDate(solar) !== existing.date) {
-          solar = lunarToSolar(lunar.year, lunar.month, lunar.day, true);
-          leap = true;
-        }
-      }
-      lm.value = leap ? (lunar.month + '-leap') : String(lunar.month);
-      ld.innerHTML = lunarDayOptions(lunar.year, lunar.month, leap);
-      ld.value = lunar.day;
-
-      // 绑定联动
-      ly.onchange = function() {
-        var year = parseInt(ly.value);
-        lm.innerHTML = lunarMonthOptions(year);
-        lm.value = '1';
-        ld.innerHTML = lunarDayOptions(year, 1, false);
-        ld.value = 1;
-      };
-      lm.onchange = function() {
-        var val = lm.value;
-        var isLeap = val.indexOf('-leap') > -1;
-        var month = parseInt(val);
-        var year = parseInt(ly.value);
-        ld.innerHTML = lunarDayOptions(year, month, isLeap);
-        if (parseInt(ld.value) > ld.options.length) ld.value = ld.options.length;
-      };
-
-      // 根据 existing.is_lunar 控制显示
-      var checkbox = document.getElementById('schedule-is-lunar');
-      if (checkbox && existing && existing.is_lunar) {
-        checkbox.checked = true;
-        toggleLunarDatePicker();
-      }
-    }
-
-    function readLunarDate() {
-      var ly = document.getElementById('lunar-year').value;
-      var lmVal = document.getElementById('lunar-month').value;
-      var ld = document.getElementById('lunar-day').value;
-      var month = parseInt(lmVal);
-      var isLeap = lmVal.indexOf('-leap') > -1;
-      var solar = lunarToSolar(parseInt(ly), month, parseInt(ld), isLeap);
-      return {
-        lunarDate: ly + '-' + String(month).padStart(2, '0') + '-' + String(ld).padStart(2, '0'),
-        solarDate: solar ? fmtDate(solar) : ''
-      };
-    }
-
     async function saveSchedule() {
-      var editIdEl = document.getElementById('schedule-edit-id');
-      editingScheduleId = editIdEl && editIdEl.value ? editIdEl.value : null;
       var title = document.getElementById('schedule-title').value.trim();
+      var date = document.getElementById('schedule-date').value;
       var time = document.getElementById('schedule-time').value;
-      var desc = document.getElementById('schedule-desc').value.trim();
+      var description = document.getElementById('schedule-desc').value.trim();
       var color = document.getElementById('schedule-color').value;
       var repeat = document.getElementById('schedule-repeat').checked ? 'yearly' : 'none';
-      var isLunar = editingScheduleType === 'birthday' && document.getElementById('schedule-is-lunar') && document.getElementById('schedule-is-lunar').checked;
-      var date = '';
-      var lunarDate = '';
-      if (isLunar) {
-        var lunarInfo = readLunarDate();
-        date = lunarInfo.solarDate;
-        lunarDate = lunarInfo.lunarDate;
-      } else {
-        date = document.getElementById('schedule-date').value;
-      }
+
       if (!title) { toast('请输入标题', 'error'); return; }
       if (!date) { toast('请选择日期', 'error'); return; }
 
       var payload = {
         workspace_id: currentWorkspace.id,
-        created_by: currentUser.id,
         type: editingScheduleType,
         title: title,
         date: date,
-        time: editingScheduleType === 'schedule' ? time : null,
-        description: desc,
+        time: time || null,
+        description: description || null,
         color: color,
-        is_all_day: editingScheduleType !== 'schedule' || !time,
         repeat_type: repeat,
-        is_lunar: editingScheduleType === 'birthday' ? isLunar : false,
-        lunar_date: editingScheduleType === 'birthday' ? lunarDate : null
+        created_by: currentUser.id
       };
+
+      // 农历生日处理
+      if (editingScheduleType === 'birthday') {
+        var isLunar = document.getElementById('schedule-is-lunar').checked;
+        var lunarDate = '';
+        if (isLunar) {
+          var ly = document.getElementById('lunar-year').value;
+          var lmVal = document.getElementById('lunar-month').value;
+          var ld = document.getElementById('lunar-day').value;
+          var lm = parseInt(lmVal);
+          var isLeapMonth = lmVal.indexOf('-leap') > -1;
+          lunarDate = ly + '-' + String(lm).padStart(2, '0') + '-' + String(ld).padStart(2, '0');
+          // 转换为阳历存储
+          var solar = lunarToSolar(parseInt(ly), lm, parseInt(ld), isLeapMonth);
+          if (!solar) {
+            solar = lunarToSolar(parseInt(ly), lm, parseInt(ld), !isLeapMonth);
+          }
+          if (solar) {
+            payload.date = fmtDate(solar);
+          }
+        }
+        payload.is_lunar = isLunar;
+        payload.lunar_date = lunarDate;
+      }
 
       var isEdit = !!editingScheduleId;
       var result;
