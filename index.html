@@ -298,6 +298,10 @@
           <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">🚀</div>
           <span class="hidden md:block font-medium">未来计划</span>
         </div>
+        <div class="sidebar-item flex items-center gap-3 px-1.5 md:px-3 py-2.5 md:py-3 rounded-xl" data-view="collection" onclick="switchView('collection')">
+          <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">⭐</div>
+          <span class="hidden md:block font-medium">收藏</span>
+        </div>
         <div class="sidebar-item flex items-center gap-3 px-1.5 md:px-3 py-2.5 md:py-3 rounded-xl" data-view="settings" onclick="switchView('settings')">
           <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">⚙️</div>
           <span class="hidden md:block font-medium">设置</span>
@@ -837,6 +841,7 @@ window.readLunarDate = function() {
         daily: ['七宝每日任务 🧒', '选择日期，自动生成每日任务，完成即打卡。'],
         swim: ['游泳练习 🏊', '记录每一次游泳的日期与时长，见证坚持的力量。'],
         plan: ['未来计划 🚀', '把大目标拆成子任务，进度一点点推进。'],
+        collection: ['收藏 ⭐', '收藏喜欢的电影、电视剧、书籍，随时翻阅。'],
         settings: ['设置 ⚙️', '管理工作空间、邀请家人、查看分享链接。']
       };
       document.getElementById('page-title').textContent = titles[currentView][0];
@@ -848,6 +853,7 @@ window.readLunarDate = function() {
       else if (currentView === 'daily') renderDaily(container);
       else if (currentView === 'swim') renderSwim(container);
       else if (currentView === 'plan') renderPlan(container);
+      else if (currentView === 'collection') renderCollection(container);
       else if (currentView === 'settings') renderSettings(container);
     }
 
@@ -1933,7 +1939,229 @@ window.readLunarDate = function() {
       await supabase.from('plan_subtasks').delete().eq('id', id);
       render();
     }
+// ==================== 收藏 ====================
+    var COLLECTION_CATEGORIES = [
+      { key: 'movie', label: '影视', icon: '🎬' },
+      { key: 'book', label: '书籍', icon: '📚' },
+      { key: 'kids_book', label: '儿童读物', icon: '📖' },
+      { key: 'kids_movie', label: '儿童影视', icon: '🧸' },
+      { key: 'other', label: '其他', icon: '📌' }
+    ];
+    var collectionSearchKeyword = '';
+    var editingCollectionId = null;
 
+    async function renderCollection(container) {
+      var result = await supabase
+        .from('collections')
+        .select('*')
+        .eq('workspace_id', currentWorkspace.id)
+        .order('created_at', { ascending: false });
+
+      if (result.error) {
+        var errorMsg = escapeHtml(result.error.message || '');
+        if (errorMsg.indexOf('relation') > -1 || errorMsg.indexOf('does not exist') > -1) {
+          container.innerHTML =
+            '<div class="empty-state card">收藏表尚未创建。<br>' +
+            '请在 Supabase SQL Editor 中执行以下建表语句：<br>' +
+            '<pre class="text-left text-[10px] md:text-xs bg-[#fff0f3] p-3 rounded-lg mt-2 overflow-x-auto">create table collections (\n  id uuid default gen_random_uuid() primary key,\n  workspace_id uuid references workspaces(id) not null,\n  category text not null,\n  title text not null,\n  note text,\n  tags text[] default \'{}\',\n  created_by uuid references auth.users(id),\n  created_at timestamp with time zone default now()\n);</pre></div>';
+        } else {
+          container.innerHTML = '<div class="empty-state card">加载收藏失败：' + errorMsg + '</div>';
+        }
+        return;
+      }
+
+      var items = result.data || [];
+      var keyword = collectionSearchKeyword.trim().toLowerCase();
+      if (keyword) {
+        items = items.filter(function(item) {
+          var inTitle = (item.title || '').toLowerCase().indexOf(keyword) !== -1;
+          var inNote = (item.note || '').toLowerCase().indexOf(keyword) !== -1;
+          var inTags = (item.tags || []).some(function(tag) { return tag.toLowerCase().indexOf(keyword) !== -1; });
+          return inTitle || inNote || inTags;
+        });
+      }
+
+      var html = '';
+
+      // 搜索框 + 全局创建
+      html += '<div class="card p-3 md:p-4 mb-4 fade-in">' +
+        '<div class="flex flex-col md:flex-row gap-2 md:gap-3">' +
+          '<div class="relative flex-1">' +
+            '<input id="collection-search" type="text" value="' + escapeHtml(collectionSearchKeyword) + '" placeholder="搜索名称、备注、标签..." class="w-full text-sm md:text-base pl-9" oninput="collectionSearchKeyword=this.value; render();" />' +
+            '<span class="absolute left-3 top-1/2 -translate-y-1/2 text-[#8c7e75]">🔍</span>' +
+          '</div>' +
+          '<button class="btn-primary px-4 md:px-5 py-2 text-xs md:text-sm whitespace-nowrap" onclick="openCollectionModal()">+ 新建收藏</button>' +
+        '</div>' +
+      '</div>';
+
+      // 按分类分组
+      var grouped = {};
+      for (var i = 0; i < COLLECTION_CATEGORIES.length; i++) {
+        grouped[COLLECTION_CATEGORIES[i].key] = [];
+      }
+      for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        if (grouped[item.category]) grouped[item.category].push(item);
+      }
+
+      for (var i = 0; i < COLLECTION_CATEGORIES.length; i++) {
+        var cat = COLLECTION_CATEGORIES[i];
+        var list = grouped[cat.key];
+        html += '<div class="card p-4 md:p-5 mb-4 fade-in">' +
+          '<div class="flex items-center justify-between mb-3">' +
+            '<div class="font-bold text-base md:text-lg">' + cat.icon + ' ' + cat.label + '</div>' +
+            '<button class="text-xs md:text-sm text-[#ff5c7f] hover:text-[#ff8fa3] border-none bg-transparent cursor-pointer" onclick="openCollectionModal(\'' + cat.key + '\')">+ 添加</button>' +
+          '</div>';
+
+        if (list.length) {
+          html += '<div class="space-y-3">';
+          for (var j = 0; j < list.length; j++) {
+            var item = list[j];
+            var tags = item.tags || [];
+            var tagsHtml = '';
+            for (var t = 0; t < tags.length; t++) {
+              tagsHtml += '<span class="text-[10px] md:text-xs px-2 py-0.5 rounded-full bg-[#fff0f3] text-[#ff5c7f]">' + escapeHtml(tags[t]) + '</span>';
+            }
+            html += '<div class="bg-[#fff8f6] rounded-xl p-3 md:p-4 flex items-start gap-3">' +
+              '<div class="flex-1 min-w-0">' +
+                '<div class="font-medium text-sm md:text-base truncate">' + escapeHtml(item.title) + '</div>' +
+                (item.note ? '<div class="text-xs md:text-sm text-[#8c7e75] mt-1 line-clamp-2">' + escapeHtml(item.note) + '</div>' : '') +
+                (tagsHtml ? '<div class="flex flex-wrap gap-1.5 mt-2">' + tagsHtml + '</div>' : '') +
+              '</div>' +
+              '<div class="flex gap-1 flex-shrink-0">' +
+                '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-xs border-none bg-transparent cursor-pointer" onclick="openCollectionModal(\'' + cat.key + '\', \'' + item.id + '\')">编辑</button>' +
+                '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-xs border-none bg-transparent cursor-pointer" onclick="deleteCollection(\'' + item.id + '\')">删除</button>' +
+              '</div>' +
+            '</div>';
+          }
+          html += '</div>';
+        } else {
+          html += '<div class="text-xs md:text-sm text-[#8c7e75] py-2">还没有' + cat.label + '收藏，点击右上角添加吧~</div>';
+        }
+        html += '</div>';
+      }
+
+      container.innerHTML = html;
+    }
+    function openCollectionModal(category, itemId) {
+      editingCollectionId = itemId || null;
+      var isEdit = !!itemId;
+      var existing = null;
+
+      if (isEdit) {
+        supabase.from('collections').select('*').eq('id', itemId).single().then(function(res) {
+          if (res.error) { toast('加载失败', 'error'); return; }
+          existing = res.data;
+          buildCollectionModal(existing.category || category || 'movie', existing);
+        });
+      } else {
+        buildCollectionModal(category || 'movie', null);
+      }
+    }
+
+    function buildCollectionModal(category, existing) {
+      closeCollectionModal();
+
+      var title = existing ? existing.title : '';
+      var note = existing ? (existing.note || '') : '';
+      var tags = existing ? (existing.tags || []).join(', ') : '';
+      var selectedCategory = existing ? existing.category : category;
+
+      var categoryOptions = '';
+      for (var i = 0; i < COLLECTION_CATEGORIES.length; i++) {
+        var cat = COLLECTION_CATEGORIES[i];
+        categoryOptions += '<option value="' + cat.key + '"' + (cat.key === selectedCategory ? ' selected' : '') + '>' + cat.icon + ' ' + cat.label + '</option>';
+      }
+
+      var html = '<div class="modal-overlay" id="collection-modal" onclick="if(event.target===this)closeCollectionModal()">' +
+        '<div class="modal-content p-4 md:p-6 fade-in">' +
+          '<div class="flex items-center justify-between mb-4">' +
+            '<div class="font-bold text-base md:text-lg">' + (existing ? '编辑' : '新建') + '收藏</div>' +
+            '<button class="text-[#8c7e75] hover:text-[#ff5c7f] border-none bg-transparent cursor-pointer text-xl" onclick="closeCollectionModal()">×</button>' +
+          '</div>' +
+          '<div class="space-y-4">' +
+            '<div>' +
+              '<label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">分类</label>' +
+              '<select id="collection-category" class="w-full text-sm md:text-base">' + categoryOptions + '</select>' +
+            '</div>' +
+            '<div>' +
+              '<label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">名称</label>' +
+              '<input id="collection-title" type="text" value="' + escapeHtml(title) + '" placeholder="电影 / 电视剧 / 书名" class="w-full text-sm md:text-base" />' +
+            '</div>' +
+            '<div>' +
+              '<label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">备注</label>' +
+              '<textarea id="collection-note" rows="3" placeholder="写点什么..." class="w-full text-sm md:text-base resize-none">' + escapeHtml(note) + '</textarea>' +
+            '</div>' +
+            '<div>' +
+              '<label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">标签</label>' +
+              '<input id="collection-tags" type="text" value="' + escapeHtml(tags) + '" placeholder="悬疑, 科幻, 灾难, 剧情, 电影, 电视剧...（用逗号分隔）" class="w-full text-sm md:text-base" />' +
+              '<div class="text-[10px] md:text-xs text-[#8c7e75] mt-1">多个标签用逗号或空格分隔</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="flex gap-3 mt-6">' +
+            '<button class="btn-primary flex-1 py-2.5 text-sm md:text-base" onclick="saveCollection()">保存</button>' +
+            (editingCollectionId ? '<button class="btn-soft flex-1 py-2.5 text-sm md:text-base" onclick="deleteCollection(\'' + editingCollectionId + '\')">删除</button>' : '') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+      var modal = document.createElement('div');
+      modal.id = 'collection-modal-container';
+      modal.innerHTML = html;
+      document.body.appendChild(modal);
+    }
+    function closeCollectionModal() {
+      var el = document.getElementById('collection-modal-container');
+      if (el) el.remove();
+    }
+
+    async function saveCollection() {
+      var category = document.getElementById('collection-category').value;
+      var title = document.getElementById('collection-title').value.trim();
+      var note = document.getElementById('collection-note').value.trim();
+      var tagsInput = document.getElementById('collection-tags').value;
+
+      if (!title) { toast('请输入名称', 'error'); return; }
+
+      var tags = tagsInput.split(/[,，\s]+/).map(function(t) { return t.trim(); }).filter(function(t) { return !!t; });
+
+      var payload = {
+        workspace_id: currentWorkspace.id,
+        category: category,
+        title: title,
+        note: note || null,
+        tags: tags,
+        created_by: currentUser.id
+      };
+
+      var result;
+      if (editingCollectionId) {
+        result = await supabase.from('collections').update(payload).eq('id', editingCollectionId);
+      } else {
+        result = await supabase.from('collections').insert(payload);
+      }
+
+      if (result.error) {
+        console.error('saveCollection error:', result.error);
+        toast(result.error.message || '保存失败', 'error');
+        return;
+      }
+
+      var isEdit = !!editingCollectionId;
+      closeCollectionModal();
+      editingCollectionId = null;
+      toast(isEdit ? '更新成功' : '创建成功', 'success');
+      render();
+    }
+
+    async function deleteCollection(id) {
+      if (!confirm('确定要删除这个收藏吗？')) return;
+      var result = await supabase.from('collections').delete().eq('id', id);
+      if (result.error) { toast(result.error.message, 'error'); return; }
+      closeCollectionModal();
+      toast('已删除', 'info');
+      render();
+    }
     // ==================== 设置 ====================
     async function renderSettings(container) {
       var inviteCode = currentWorkspace.invite_code || '';
