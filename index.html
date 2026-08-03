@@ -2004,7 +2004,7 @@ window.readLunarDate = function() {
         if (grouped[item.category]) grouped[item.category].push(item);
       }
 
-      html += '<div class="grid grid-cols-1 md:grid-cols-5 gap-3 md:gap-5">';
+      html += '<div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-5">';
       for (var i = 0; i < COLLECTION_CATEGORIES.length; i++) {
         var cat = COLLECTION_CATEGORIES[i];
         var list = grouped[cat.key];
