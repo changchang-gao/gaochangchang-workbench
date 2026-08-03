@@ -1949,6 +1949,7 @@ window.readLunarDate = function() {
     ];
     var collectionSearchKeyword = '';
     var editingCollectionId = null;
+    var collectionCollapsed = {};
 
     async function renderCollection(container) {
       var result = await supabase
@@ -2008,11 +2009,16 @@ window.readLunarDate = function() {
       for (var i = 0; i < COLLECTION_CATEGORIES.length; i++) {
         var cat = COLLECTION_CATEGORIES[i];
         var list = grouped[cat.key];
+        var collapsed = !!collectionCollapsed[cat.key];
         html += '<div class="card p-4 md:p-5 fade-in">' +
           '<div class="flex items-center justify-between mb-3">' +
             '<div class="font-bold text-base md:text-lg">' + cat.icon + ' ' + cat.label + '</div>' +
-            '<button class="text-xs md:text-sm text-[#ff5c7f] hover:text-[#ff8fa3] border-none bg-transparent cursor-pointer" onclick="openCollectionModal(\'' + cat.key + '\')">+ 添加</button>' +
-          '</div>';
+            '<div class="flex items-center gap-2">' +
+              '<button class="text-xs md:text-sm text-[#8c7e75] hover:text-[#ff5c7f] border border-[#e9e2dd] rounded-lg px-2 py-1 bg-transparent cursor-pointer" onclick="toggleCollectionCollapse(\'' + cat.key + '\')">' + (collapsed ? '展开 ▶' : '收起 ▼') + '</button>' +
+              '<button class="text-xs md:text-sm text-[#ff5c7f] hover:text-[#ff8fa3] border-none bg-transparent cursor-pointer" onclick="openCollectionModal(\'' + cat.key + '\')">+ 添加</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="' + (collapsed ? 'hidden' : '') + '">';
 
         if (list.length) {
           html += '<div class="space-y-3">';
@@ -2039,11 +2045,16 @@ window.readLunarDate = function() {
         } else {
           html += '<div class="text-xs md:text-sm text-[#8c7e75] py-2">还没有' + cat.label + '收藏，点击右上角添加吧~</div>';
         }
-        html += '</div>';
+        html += '</div>';  // end collapsible content
+        html += '</div>';  // end card
       }
       html += '</div>';  // end grid
 
       container.innerHTML = html;
+    }
+    function toggleCollectionCollapse(key) {
+      collectionCollapsed[key] = !collectionCollapsed[key];
+      render();
     }
     function openCollectionModal(category, itemId) {
       editingCollectionId = itemId || null;
