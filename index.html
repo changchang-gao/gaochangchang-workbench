@@ -302,6 +302,10 @@
           <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">⭐</div>
           <span class="hidden md:block font-medium">收藏</span>
         </div>
+        <div class="sidebar-item flex items-center gap-3 px-1.5 md:px-3 py-2.5 md:py-3 rounded-xl" data-view="grudge" onclick="switchView('grudge')">
+          <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">😤</div>
+          <span class="hidden md:block font-medium">记仇本</span>
+        </div>
         <div class="sidebar-item flex items-center gap-3 px-1.5 md:px-3 py-2.5 md:py-3 rounded-xl" data-view="settings" onclick="switchView('settings')">
           <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">⚙️</div>
           <span class="hidden md:block font-medium">设置</span>
@@ -842,6 +846,7 @@ window.readLunarDate = function() {
         swim: ['游泳练习 🏊', '记录每一次游泳的日期与时长，见证坚持的力量。'],
         plan: ['未来计划 🚀', '把大目标拆成子任务，进度一点点推进。'],
         collection: ['收藏 ⭐', '收藏喜欢的电影、电视剧、书籍，随时翻阅。'],
+        grudge: ['记仇本 😤', '记下每一笔，新建、保存、编辑，一个都不放过。'],
         settings: ['设置 ⚙️', '管理工作空间、邀请家人、查看分享链接。']
       };
       document.getElementById('page-title').textContent = titles[currentView][0];
@@ -854,6 +859,7 @@ window.readLunarDate = function() {
       else if (currentView === 'swim') renderSwim(container);
       else if (currentView === 'plan') renderPlan(container);
       else if (currentView === 'collection') renderCollection(container);
+      else if (currentView === 'grudge') renderGrudge(container);
       else if (currentView === 'settings') renderSettings(container);
     }
 
@@ -2175,6 +2181,158 @@ window.readLunarDate = function() {
       toast('已删除', 'info');
       render();
     }
+    // ==================== 记仇本 ====================
+    var editingGrudgeId = null;
+
+    async function renderGrudge(container) {
+      var result = await supabase
+        .from('grudges')
+        .select('*')
+        .eq('workspace_id', currentWorkspace.id)
+        .order('created_at', { ascending: false });
+
+      if (result.error) {
+        var errorMsg = escapeHtml(result.error.message || '');
+        if (errorMsg.indexOf('relation') > -1 || errorMsg.indexOf('does not exist') > -1) {
+          container.innerHTML =
+            '<div class="empty-state card">记仇本表尚未创建。<br>' +
+            '请在 Supabase SQL Editor 中执行以下建表语句：<br>' +
+            '<pre class="text-left text-[10px] md:text-xs bg-[#fff0f3] p-3 rounded-lg mt-2 overflow-x-auto">create table grudges (\n  id uuid default gen_random_uuid() primary key,\n  workspace_id uuid references workspaces(id) not null,\n  title text not null,\n  content text,\n  created_by uuid references auth.users(id),\n  created_at timestamp with time zone default now()\n);</pre></div>';
+        } else {
+          container.innerHTML = '<div class="empty-state card">加载记仇本失败：' + errorMsg + '</div>';
+        }
+        return;
+      }
+
+      var items = result.data || [];
+
+      var html = '';
+      html += '<div class="flex items-center justify-between mb-4">' +
+        '<div class="text-sm md:text-base text-[#8c7e75]">共 ' + items.length + ' 条记录</div>' +
+        '<button class="btn-primary px-4 md:px-5 py-2 text-xs md:text-sm whitespace-nowrap" onclick="openGrudgeModal()">+ 新建文本</button>' +
+        '</div>';
+
+      if (items.length) {
+        html += '<div class="space-y-3 md:space-y-4">';
+        for (var i = 0; i < items.length; i++) {
+          var g = items[i];
+          var dateStr = '';
+          if (g.created_at) {
+            var d = new Date(g.created_at);
+            dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+          }
+          html += '<div class="card p-4 md:p-5 fade-in">' +
+            '<div class="flex items-start justify-between gap-3 mb-2">' +
+              '<div class="font-bold text-base md:text-lg break-all">' + escapeHtml(g.title) + '</div>' +
+              '<div class="flex gap-2 flex-shrink-0">' +
+                '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-xs md:text-sm border-none bg-transparent cursor-pointer" onclick="openGrudgeModal(\'' + g.id + '\')">编辑</button>' +
+                '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-xs md:text-sm border-none bg-transparent cursor-pointer" onclick="deleteGrudge(\'' + g.id + '\')">删除</button>' +
+              '</div>' +
+            '</div>' +
+            (dateStr ? '<div class="text-[10px] md:text-xs text-[#8c7e75] mb-2">' + dateStr + '</div>' : '') +
+            '<div class="text-sm md:text-base text-[#4a3f3a] whitespace-pre-wrap break-words leading-relaxed">' + escapeHtml(g.content || '') + '</div>' +
+            '</div>';
+        }
+        html += '</div>';
+      } else {
+        html += '<div class="empty-state card">还没有记录，点击右上角「新建文本」记下第一笔吧~</div>';
+      }
+
+      container.innerHTML = html;
+    }
+
+    function openGrudgeModal(grudgeId) {
+      editingGrudgeId = grudgeId || null;
+      if (grudgeId) {
+        supabase.from('grudges').select('*').eq('id', grudgeId).single().then(function(res) {
+          if (res.error) { toast('加载失败', 'error'); return; }
+          buildGrudgeModal(res.data);
+        });
+      } else {
+        buildGrudgeModal(null);
+      }
+    }
+
+    function buildGrudgeModal(existing) {
+      closeGrudgeModal();
+      var title = existing ? existing.title : '';
+      var content = existing ? (existing.content || '') : '';
+
+      var html = '<div class="modal-overlay" id="grudge-modal" onclick="if(event.target===this)closeGrudgeModal()">' +
+        '<div class="modal-content p-4 md:p-6 fade-in">' +
+          '<div class="flex items-center justify-between mb-4">' +
+            '<div class="font-bold text-base md:text-lg">' + (existing ? '编辑文本' : '新建文本') + '</div>' +
+            '<button class="text-[#8c7e75] hover:text-[#ff5c7f] border-none bg-transparent cursor-pointer text-xl" onclick="closeGrudgeModal()">×</button>' +
+          '</div>' +
+          '<div class="space-y-4">' +
+            '<div>' +
+              '<label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">标题</label>' +
+              '<input id="grudge-title" type="text" value="' + escapeHtml(title) + '" placeholder="给这笔记个名..." class="w-full text-sm md:text-base" />' +
+            '</div>' +
+            '<div>' +
+              '<label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">内容</label>' +
+              '<textarea id="grudge-content" rows="8" placeholder="写下要记下的事..." class="w-full text-sm md:text-base resize-none">' + escapeHtml(content) + '</textarea>' +
+            '</div>' +
+          '</div>' +
+          '<div class="flex gap-3 mt-6">' +
+            '<button class="btn-primary flex-1 py-2.5 text-sm md:text-base" onclick="saveGrudge()">保存</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+      var modal = document.createElement('div');
+      modal.id = 'grudge-modal-container';
+      modal.innerHTML = html;
+      document.body.appendChild(modal);
+    }
+
+    function closeGrudgeModal() {
+      var el = document.getElementById('grudge-modal-container');
+      if (el) el.remove();
+    }
+
+    async function saveGrudge() {
+      var title = document.getElementById('grudge-title').value.trim();
+      var content = document.getElementById('grudge-content').value;
+
+      if (!title && !content.trim()) { toast('标题和内容不能都为空', 'error'); return; }
+
+      var payload = {
+        workspace_id: currentWorkspace.id,
+        title: title || '无标题',
+        content: content.trim() || null,
+        created_by: currentUser.id
+      };
+
+      var result;
+      if (editingGrudgeId) {
+        result = await supabase.from('grudges').update(payload).eq('id', editingGrudgeId);
+      } else {
+        result = await supabase.from('grudges').insert(payload);
+      }
+
+      if (result.error) {
+        console.error('saveGrudge error:', result.error);
+        toast(result.error.message || '保存失败', 'error');
+        return;
+      }
+
+      var isEdit = !!editingGrudgeId;
+      closeGrudgeModal();
+      editingGrudgeId = null;
+      toast(isEdit ? '更新成功' : '保存成功', 'success');
+      render();
+    }
+
+    async function deleteGrudge(id) {
+      if (!confirm('确定要删除这条记录吗？')) return;
+      var result = await supabase.from('grudges').delete().eq('id', id);
+      if (result.error) { toast(result.error.message, 'error'); return; }
+      closeGrudgeModal();
+      toast('已删除', 'info');
+      render();
+    }
+
     // ==================== 设置 ====================
     async function renderSettings(container) {
       var inviteCode = currentWorkspace.invite_code || '';
