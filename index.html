@@ -303,8 +303,8 @@
           <span class="hidden md:block font-medium">收藏</span>
         </div>
         <div class="sidebar-item flex items-center gap-3 px-1.5 md:px-3 py-2.5 md:py-3 rounded-xl" data-view="grudge" onclick="switchView('grudge')">
-          <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">😤</div>
-          <span class="hidden md:block font-medium">记仇本</span>
+          <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">📓</div>
+          <span class="hidden md:block font-medium">小本本</span>
         </div>
         <div class="sidebar-item flex items-center gap-3 px-1.5 md:px-3 py-2.5 md:py-3 rounded-xl" data-view="settings" onclick="switchView('settings')">
           <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">⚙️</div>
@@ -846,7 +846,7 @@ window.readLunarDate = function() {
         swim: ['游泳练习 🏊', '记录每一次游泳的日期与时长，见证坚持的力量。'],
         plan: ['未来计划 🚀', '把大目标拆成子任务，进度一点点推进。'],
         collection: ['收藏 ⭐', '收藏喜欢的电影、电视剧、书籍，随时翻阅。'],
-        grudge: ['记仇本 😤', '记下每一笔，新建、保存、编辑，一个都不放过。'],
+        grudge: ['小本本 📓', '记下每一笔，新建、保存、编辑，一个都不放过。'],
         settings: ['设置 ⚙️', '管理工作空间、邀请家人、查看分享链接。']
       };
       document.getElementById('page-title').textContent = titles[currentView][0];
@@ -2181,7 +2181,7 @@ window.readLunarDate = function() {
       toast('已删除', 'info');
       render();
     }
-    // ==================== 记仇本 ====================
+    // ==================== 小本本 ====================
     var editingGrudgeId = null;
 
     async function renderGrudge(container) {
@@ -2195,11 +2195,11 @@ window.readLunarDate = function() {
         var errorMsg = escapeHtml(result.error.message || '');
         if (errorMsg.indexOf('relation') > -1 || errorMsg.indexOf('does not exist') > -1) {
           container.innerHTML =
-            '<div class="empty-state card">记仇本表尚未创建。<br>' +
+            '<div class="empty-state card">小本本表尚未创建。<br>' +
             '请在 Supabase SQL Editor 中执行以下建表语句：<br>' +
             '<pre class="text-left text-[10px] md:text-xs bg-[#fff0f3] p-3 rounded-lg mt-2 overflow-x-auto">create table grudges (\n  id uuid default gen_random_uuid() primary key,\n  workspace_id uuid references workspaces(id) not null,\n  title text not null,\n  content text,\n  created_by uuid references auth.users(id),\n  created_at timestamp with time zone default now()\n);</pre></div>';
         } else {
-          container.innerHTML = '<div class="empty-state card">加载记仇本失败：' + errorMsg + '</div>';
+          container.innerHTML = '<div class="empty-state card">加载小本本失败：' + errorMsg + '</div>';
         }
         return;
       }
