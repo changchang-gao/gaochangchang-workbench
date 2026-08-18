@@ -830,6 +830,15 @@ window.readLunarDate = function() {
       render();
     }
 
+    // 格式化分钟数为 "X小时Y分钟"
+    function fmtDuration(mins) {
+      var m = Math.round(mins);
+      if (m < 60) return m + ' 分钟';
+      var h = Math.floor(m / 60);
+      var rm = m % 60;
+      return rm > 0 ? h + ' 小时 ' + rm + ' 分钟' : h + ' 小时';
+    }
+
     function render() {
       var container = document.getElementById('view-container');
       if (!container) return;
@@ -868,12 +877,14 @@ window.readLunarDate = function() {
       var results = await Promise.all([
         supabase.from('memos').select('id,completed').eq('workspace_id', currentWorkspace.id),
         supabase.from('plans').select('id, plan_subtasks(completed)').eq('workspace_id', currentWorkspace.id),
-        supabase.from('swimming_records').select('duration').eq('workspace_id', currentWorkspace.id)
+        supabase.from('swimming_records').select('duration').eq('workspace_id', currentWorkspace.id),
+        supabase.from('schedules').select('*').eq('workspace_id', currentWorkspace.id).order('date', { ascending: true })
       ]);
 
       var memos = results[0].data || [];
       var plans = results[1].data || [];
       var swim = results[2].data || [];
+      var allSchedules = results[3].data || [];
 
       var completedMemos = 0;
       for (var i = 0; i < memos.length; i++) { if (memos[i].completed) completedMemos++; }
@@ -888,6 +899,15 @@ window.readLunarDate = function() {
 
       var swimTotal = 0;
       for (var s = 0; s < swim.length; s++) { swimTotal += parseFloat(swim[s].duration) || 0; }
+
+      var swimTotalStr = fmtDuration(swimTotal);
+
+      // 找最近一次日程（从今天起）
+      var todayStr = fmtDate();
+      var nextSchedule = null;
+      for (var si = 0; si < allSchedules.length; si++) {
+        if (allSchedules[si].date >= todayStr) { nextSchedule = allSchedules[si]; break; }
+      }
 
       container.innerHTML =
         '<div class="grid grid-cols-3 gap-2 md:gap-5 mb-6 md:mb-8">' +
@@ -912,7 +932,7 @@ window.readLunarDate = function() {
           '</div>' +
           '<div class="card p-4 md:p-5 cursor-pointer" onclick="switchView(\'schedule\')">' +
             '<div class="flex items-center gap-2 md:gap-3 mb-2"><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#fce7f3] flex items-center justify-center text-base md:text-lg">📅</div><div class="font-bold text-base md:text-lg">我的日程</div></div>' +
-            '<div class="text-xs md:text-sm text-[#8c7e75]">生日、纪念日、重要日子</div>' +
+            '<div class="text-xs md:text-sm text-[#8c7e75]">' + (nextSchedule ? escapeHtml(nextSchedule.title) + ' · ' + nextSchedule.date : '生日、纪念日、重要日子') + '</div>' +
           '</div>' +
           '<div class="card p-4 md:p-5 cursor-pointer" onclick="switchView(\'daily\')">' +
             '<div class="flex items-center gap-2 md:gap-3 mb-2"><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#dbeafe] flex items-center justify-center text-base md:text-lg">🧒</div><div class="font-bold text-base md:text-lg">七宝每日任务</div></div>' +
@@ -920,7 +940,7 @@ window.readLunarDate = function() {
           '</div>' +
           '<div class="card p-4 md:p-5 cursor-pointer" onclick="switchView(\'swim\')">' +
             '<div class="flex items-center gap-2 md:gap-3 mb-2"><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#fef3c7] flex items-center justify-center text-base md:text-lg">🏊</div><div class="font-bold text-base md:text-lg">游泳练习</div></div>' +
-            '<div class="text-xs md:text-sm text-[#8c7e75]">累计时长 · ' + swimTotal + ' 分钟</div>' +
+            '<div class="text-xs md:text-sm text-[#8c7e75]">累计时长 · ' + swimTotalStr + '</div>' +
           '</div>' +
           '<div class="card p-4 md:p-5 cursor-pointer" onclick="switchView(\'plan\')">' +
             '<div class="flex items-center gap-2 md:gap-3 mb-2"><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#ede9fe] flex items-center justify-center text-base md:text-lg">🚀</div><div class="font-bold text-base md:text-lg">未来计划</div></div>' +
@@ -1794,7 +1814,7 @@ window.readLunarDate = function() {
       '</div></div>';
 
       html += '<div class="card p-4 md:p-5 mb-6 flex items-center justify-between bg-gradient-to-r from-[#dbeafe] to-white">' +
-        '<div><div class="text-xs md:text-sm text-[#8c7e75]">累计游泳时长</div><div class="text-2xl md:text-3xl font-bold text-[#2563eb]">' + total + ' 分钟</div></div>' +
+        '<div><div class="text-xs md:text-sm text-[#8c7e75]">累计游泳时长</div><div class="text-2xl md:text-3xl font-bold text-[#2563eb]">' + fmtDuration(total) + '</div></div>' +
         '<div class="text-3xl md:text-4xl">🏊</div>' +
       '</div>';
 
