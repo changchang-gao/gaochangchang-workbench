@@ -940,7 +940,7 @@ window.readLunarDate = function() {
           '</div>' +
           '<div class="card p-4 md:p-5 cursor-pointer" onclick="switchView(\'swim\')">' +
             '<div class="flex items-center gap-2 md:gap-3 mb-2"><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#fef3c7] flex items-center justify-center text-base md:text-lg">🏊</div><div class="font-bold text-base md:text-lg">游泳练习</div></div>' +
-            '<div class="text-xs md:text-sm text-[#8c7e75]">累计时长 · ' + swimTotalStr + '</div>' +
+            '<div class="text-xs md:text-sm text-[#8c7e75]">累计时长 · ' + swimTotal + ' 分钟（' + Math.floor(swimTotal / 60) + ' 小时）</div>' +
           '</div>' +
           '<div class="card p-4 md:p-5 cursor-pointer" onclick="switchView(\'plan\')">' +
             '<div class="flex items-center gap-2 md:gap-3 mb-2"><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#ede9fe] flex items-center justify-center text-base md:text-lg">🚀</div><div class="font-bold text-base md:text-lg">未来计划</div></div>' +
@@ -1813,8 +1813,10 @@ window.readLunarDate = function() {
         '<button class="btn-primary px-5 md:px-6 py-2 md:py-2.5 text-sm md:text-base" onclick="addSwim()">记录</button>' +
       '</div></div>';
 
+      var totalHours = Math.floor(total / 60);
       html += '<div class="card p-4 md:p-5 mb-6 flex items-center justify-between bg-gradient-to-r from-[#dbeafe] to-white">' +
-        '<div><div class="text-xs md:text-sm text-[#8c7e75]">累计游泳时长</div><div class="text-2xl md:text-3xl font-bold text-[#2563eb]">' + fmtDuration(total) + '</div></div>' +
+        '<div><div class="text-xs md:text-sm text-[#8c7e75]">累计游泳时长</div><div class="text-2xl md:text-3xl font-bold text-[#2563eb]">' + total + ' 分钟</div></div>' +
+        '<div class="text-center"><div class="text-xs md:text-sm text-[#8c7e75]">累计小时</div><div class="text-2xl md:text-3xl font-bold text-[#2563eb]">' + totalHours + ' 小时</div></div>' +
         '<div class="text-3xl md:text-4xl">🏊</div>' +
       '</div>';
 
