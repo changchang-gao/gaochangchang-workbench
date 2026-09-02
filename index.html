@@ -298,6 +298,10 @@
           <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">🚀</div>
           <span class="hidden md:block font-medium">未来计划</span>
         </div>
+        <div class="sidebar-item flex items-center gap-3 px-1.5 md:px-3 py-2.5 md:py-3 rounded-xl" data-view="plant" onclick="switchView('plant')">
+          <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">🌱</div>
+          <span class="hidden md:block font-medium">种草</span>
+        </div>
         <div class="sidebar-item flex items-center gap-3 px-1.5 md:px-3 py-2.5 md:py-3 rounded-xl" data-view="collection" onclick="switchView('collection')">
           <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">⭐</div>
           <span class="hidden md:block font-medium">收藏</span>
@@ -855,6 +859,7 @@ window.readLunarDate = function() {
         swim: ['游泳练习 🏊', '记录每一次游泳的日期与时长，见证坚持的力量。'],
         plan: ['未来计划 🚀', '把大目标拆成子任务，进度一点点推进。'],
         collection: ['收藏 ⭐', '收藏喜欢的电影、电视剧、书籍，随时翻阅。'],
+        plant: ['种草 🌱', '记录日常好物与踩雷避雷，种草 or 拔草，一目了然。'],
         grudge: ['小本本 📓', '记下每一笔，新建、保存、编辑，一个都不放过。'],
         settings: ['设置 ⚙️', '管理工作空间、邀请家人、查看分享链接。']
       };
@@ -868,6 +873,7 @@ window.readLunarDate = function() {
       else if (currentView === 'swim') renderSwim(container);
       else if (currentView === 'plan') renderPlan(container);
       else if (currentView === 'collection') renderCollection(container);
+      else if (currentView === 'plant') renderPlant(container);
       else if (currentView === 'grudge') renderGrudge(container);
       else if (currentView === 'settings') renderSettings(container);
     }
@@ -2352,6 +2358,264 @@ window.readLunarDate = function() {
       if (result.error) { toast(result.error.message, 'error'); return; }
       closeGrudgeModal();
       toast('已删除', 'info');
+      render();
+    }
+
+    // ==================== 种草 ====================
+    var editingPlantCategoryId = null;
+    var editingPlantItemId = null;
+    var plantCategoryMap = {};
+
+    async function renderPlant(container) {
+      var catRes = await supabase
+        .from('plant_categories')
+        .select('*')
+        .eq('workspace_id', currentWorkspace.id)
+        .order('sort_order', { ascending: true });
+
+      if (catRes.error) {
+        var em = escapeHtml(catRes.error.message || '');
+        if (em.indexOf('relation') > -1 || em.indexOf('does not exist') > -1) {
+          container.innerHTML = '<div class="empty-state card">种草相关表尚未创建。<br>请在 Supabase SQL Editor 中执行 plant.sql 建表语句。</div>';
+        } else {
+          container.innerHTML = '<div class="empty-state card">加载种草失败：' + em + '</div>';
+        }
+        return;
+      }
+      var categories = catRes.data || [];
+
+      var itemRes = await supabase
+        .from('plant_items')
+        .select('*')
+        .eq('workspace_id', currentWorkspace.id);
+      if (itemRes.error) {
+        container.innerHTML = '<div class="empty-state card">加载商品失败：' + escapeHtml(itemRes.error.message || '') + '</div>';
+        return;
+      }
+      var items = itemRes.data || [];
+
+      plantCategoryMap = {};
+      var itemsByCat = {};
+      for (var i = 0; i < categories.length; i++) {
+        plantCategoryMap[categories[i].id] = categories[i].name;
+        itemsByCat[categories[i].id] = [];
+      }
+      for (var j = 0; j < items.length; j++) {
+        if (itemsByCat[items[j].category_id]) itemsByCat[items[j].category_id].push(items[j]);
+      }
+
+      var html = '';
+      html += '<div class="flex items-center justify-between mb-4">' +
+        '<div class="text-sm md:text-base text-[#8c7e75]">共 ' + categories.length + ' 个大类 · ' + items.length + ' 件商品</div>' +
+        '<button class="btn-primary px-4 md:px-5 py-2 text-xs md:text-sm whitespace-nowrap" onclick="openPlantCategoryModal()">+ 新建大类</button>' +
+        '</div>';
+
+      if (!categories.length) {
+        html += '<div class="empty-state card">还没有大类，点击右上角「新建大类」开始种草吧~</div>';
+      }
+
+      for (var c = 0; c < categories.length; c++) {
+        var cat = categories[c];
+        var list = itemsByCat[cat.id] || [];
+        html += '<div class="card p-4 md:p-5 mb-4 fade-in">' +
+          '<div class="flex items-center justify-between gap-2 mb-3">' +
+            '<div class="font-bold text-base md:text-lg break-all">' + escapeHtml(cat.name) + '</div>' +
+            '<div class="flex gap-2 flex-shrink-0">' +
+              '<button class="text-xs md:text-sm text-[#ff5c7f] hover:text-[#ff8fa3] border-none bg-transparent cursor-pointer" onclick="openPlantItemModal(\'' + cat.id + '\')">+ 添加</button>' +
+              '<button class="text-xs md:text-sm text-[#8c7e75] hover:text-[#ff5c7f] border-none bg-transparent cursor-pointer" onclick="openPlantCategoryModal(\'' + cat.id + '\')">重命名</button>' +
+              '<button class="text-xs md:text-sm text-[#8c7e75] hover:text-[#ff5c7f] border-none bg-transparent cursor-pointer" onclick="deletePlantCategory(\'' + cat.id + '\')">删除</button>' +
+            '</div>' +
+          '</div>';
+
+        if (list.length) {
+          html += '<div class="space-y-2 md:space-y-3">';
+          for (var k = 0; k < list.length; k++) {
+            var p = list[k];
+            var planted = p.status === 'planted';
+            var pulled = p.status === 'pulled';
+            html += '<div class="bg-[#fff8f6] rounded-xl p-3 md:p-4">' +
+              '<div class="flex items-start justify-between gap-3">' +
+                '<div class="min-w-0 flex-1">' +
+                  '<div class="font-semibold text-sm md:text-base break-all">' + escapeHtml(p.name) + '</div>' +
+                  (p.merchant ? '<div class="text-[10px] md:text-xs text-[#8c7e75] mt-0.5">商家：' + escapeHtml(p.merchant) + '</div>' : '') +
+                  (p.note ? '<div class="text-xs md:text-sm text-[#4a3f3a] mt-1 whitespace-pre-wrap break-words">' + escapeHtml(p.note) + '</div>' : '') +
+                '</div>' +
+                '<div class="flex items-center gap-1 md:gap-2 flex-shrink-0 flex-wrap justify-end">' +
+                  '<button class="' + (planted ? 'bg-[#dcfce7] text-[#16a34a]' : 'bg-white text-[#8c7e75]') + ' border border-[#f3e8e2] rounded-lg px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm cursor-pointer" onclick="togglePlantStatus(\'' + p.id + '\',\'planted\')">✅ 种草</button>' +
+                  '<button class="' + (pulled ? 'bg-[#fee2e2] text-[#dc2626]' : 'bg-white text-[#8c7e75]') + ' border border-[#f3e8e2] rounded-lg px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm cursor-pointer" onclick="togglePlantStatus(\'' + p.id + '\',\'pulled\')">❌ 拔草</button>' +
+                  '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-xs md:text-sm border-none bg-transparent cursor-pointer ml-1" onclick="openPlantItemModal(\'' + cat.id + '\',\'' + p.id + '\')">编辑</button>' +
+                  '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-xs md:text-sm border-none bg-transparent cursor-pointer" onclick="deletePlantItem(\'' + p.id + '\')">删除</button>' +
+                '</div>' +
+              '</div>' +
+            '</div>';
+          }
+          html += '</div>';
+        } else {
+          html += '<div class="text-xs md:text-sm text-[#8c7e75] py-2">这个大类还没有商品，点击右上角「+ 添加」吧~</div>';
+        }
+        html += '</div>';
+      }
+
+      container.innerHTML = html;
+    }
+
+    function openPlantCategoryModal(categoryId) {
+      editingPlantCategoryId = categoryId || null;
+      var existingName = categoryId ? (plantCategoryMap[categoryId] || '') : '';
+      buildPlantCategoryModal(existingName);
+    }
+
+    function buildPlantCategoryModal(existingName) {
+      closePlantCategoryModal();
+      var html = '<div class="modal-overlay" id="plant-cat-modal" onclick="if(event.target===this)closePlantCategoryModal()">' +
+        '<div class="modal-content p-4 md:p-6 fade-in">' +
+          '<div class="flex items-center justify-between mb-4">' +
+            '<div class="font-bold text-base md:text-lg">' + (editingPlantCategoryId ? '重命名大类' : '新建大类') + '</div>' +
+            '<button class="text-[#8c7e75] hover:text-[#ff5c7f] border-none bg-transparent cursor-pointer text-xl" onclick="closePlantCategoryModal()">×</button>' +
+          '</div>' +
+          '<div class="space-y-4">' +
+            '<div>' +
+              '<label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">大类名称</label>' +
+              '<input id="plant-cat-name" type="text" value="' + escapeHtml(existingName) + '" placeholder="如：奶茶、美妆、数码..." class="w-full text-sm md:text-base" />' +
+            '</div>' +
+          '</div>' +
+          '<div class="flex gap-3 mt-6">' +
+            '<button class="btn-primary flex-1 py-2.5 text-sm md:text-base" onclick="savePlantCategory()">保存</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+      var modal = document.createElement('div');
+      modal.id = 'plant-cat-modal-container';
+      modal.innerHTML = html;
+      document.body.appendChild(modal);
+    }
+
+    function closePlantCategoryModal() {
+      var el = document.getElementById('plant-cat-modal-container');
+      if (el) el.remove();
+    }
+
+    async function savePlantCategory() {
+      var name = document.getElementById('plant-cat-name');
+      if (!name) return;
+      var val = name.value.trim();
+      if (!val) { toast('请填写大类名称', 'error'); return; }
+
+      var r;
+      if (editingPlantCategoryId) {
+        r = await supabase.from('plant_categories').update({ name: val }).eq('id', editingPlantCategoryId);
+        if (r.error) { toast(r.error.message, 'error'); return; }
+        toast('已重命名', 'success');
+      } else {
+        var maxRes = await supabase.from('plant_categories').select('sort_order').eq('workspace_id', currentWorkspace.id).order('sort_order', { ascending: false }).limit(1);
+        var next = 1;
+        if (maxRes.data && maxRes.data.length) next = (maxRes.data[0].sort_order || 0) + 1;
+        r = await supabase.from('plant_categories').insert({
+          workspace_id: currentWorkspace.id,
+          name: val,
+          sort_order: next,
+          created_by: currentUser.id
+        });
+        if (r.error) { toast(r.error.message, 'error'); return; }
+        toast('已新建大类', 'success');
+      }
+      closePlantCategoryModal();
+      editingPlantCategoryId = null;
+      render();
+    }
+
+    async function deletePlantCategory(id) {
+      if (!confirm('删除该大类会同时删除其下所有商品，确定吗？')) return;
+      await supabase.from('plant_items').delete().eq('category_id', id);
+      var r = await supabase.from('plant_categories').delete().eq('id', id);
+      if (r.error) { toast(r.error.message, 'error'); return; }
+      toast('已删除', 'info');
+      render();
+    }
+
+    function openPlantItemModal(categoryId, itemId) {
+      editingPlantItemId = itemId || null;
+      if (itemId) {
+        supabase.from('plant_items').select('*').eq('id', itemId).single().then(function(res) {
+          if (res.error) { toast('加载失败', 'error'); return; }
+          buildPlantItemModal(res.data.category_id, res.data);
+        });
+      } else {
+        buildPlantItemModal(categoryId, null);
+      }
+    }
+
+    function buildPlantItemModal(categoryId, existing) {
+      closePlantItemModal();
+      var name = existing ? existing.name : '';
+      var merchant = existing ? (existing.merchant || '') : '';
+      var note = existing ? (existing.note || '') : '';
+      var html = '<div class="modal-overlay" id="plant-item-modal" onclick="if(event.target===this)closePlantItemModal()">' +
+        '<div class="modal-content p-4 md:p-6 fade-in">' +
+          '<div class="flex items-center justify-between mb-4">' +
+            '<div class="font-bold text-base md:text-lg">' + (existing ? '编辑商品' : '添加商品') + '</div>' +
+            '<button class="text-[#8c7e75] hover:text-[#ff5c7f] border-none bg-transparent cursor-pointer text-xl" onclick="closePlantItemModal()">×</button>' +
+          '</div>' +
+          '<div class="space-y-4">' +
+            '<div><label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">品名</label><input id="plant-item-name" type="text" value="' + escapeHtml(name) + '" placeholder="如：初恋玫瑰青提" class="w-full text-sm md:text-base" /></div>' +
+            '<div><label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">商家</label><input id="plant-item-merchant" type="text" value="' + escapeHtml(merchant) + '" placeholder="如：爷爷不泡茶" class="w-full text-sm md:text-base" /></div>' +
+            '<div><label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">备注</label><textarea id="plant-item-note" rows="4" placeholder="口感、避雷点、链接..." class="w-full text-sm md:text-base resize-none">' + escapeHtml(note) + '</textarea></div>' +
+          '</div>' +
+          '<div class="flex gap-3 mt-6">' +
+            '<button class="btn-primary flex-1 py-2.5 text-sm md:text-base" onclick="savePlantItem(\'' + categoryId + '\')">保存</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+      var modal = document.createElement('div');
+      modal.id = 'plant-item-modal-container';
+      modal.innerHTML = html;
+      document.body.appendChild(modal);
+    }
+
+    function closePlantItemModal() {
+      var el = document.getElementById('plant-item-modal-container');
+      if (el) el.remove();
+    }
+
+    async function savePlantItem(categoryId) {
+      var nameEl = document.getElementById('plant-item-name');
+      if (!nameEl) return;
+      var name = nameEl.value.trim();
+      if (!name) { toast('请填写品名', 'error'); return; }
+      var merchant = document.getElementById('plant-item-merchant').value.trim();
+      var note = document.getElementById('plant-item-note').value.trim();
+      var isEdit = !!editingPlantItemId;
+
+      var payload = { workspace_id: currentWorkspace.id, name: name, merchant: merchant || null, note: note || null };
+      var r;
+      if (isEdit) {
+        r = await supabase.from('plant_items').update(payload).eq('id', editingPlantItemId);
+      } else {
+        payload.category_id = categoryId;
+        payload.created_by = currentUser.id;
+        r = await supabase.from('plant_items').insert(payload);
+      }
+      if (r.error) { toast(r.error.message, 'error'); return; }
+      closePlantItemModal();
+      editingPlantItemId = null;
+      toast(isEdit ? '已更新' : '已添加', 'success');
+      render();
+    }
+
+    async function deletePlantItem(id) {
+      if (!confirm('确定删除这件商品吗？')) return;
+      var r = await supabase.from('plant_items').delete().eq('id', id);
+      if (r.error) { toast(r.error.message, 'error'); return; }
+      toast('已删除', 'info');
+      render();
+    }
+
+    async function togglePlantStatus(id, status) {
+      var cur = await supabase.from('plant_items').select('status').eq('id', id).single();
+      var current = (cur.data && cur.data.status) || null;
+      var newStatus = (current === status) ? null : status;
+      var r = await supabase.from('plant_items').update({ status: newStatus }).eq('id', id);
+      if (r.error) { toast(r.error.message, 'error'); return; }
       render();
     }
 
