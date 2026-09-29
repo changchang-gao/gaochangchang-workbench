@@ -354,20 +354,31 @@
       }
     });
 
-    // 密码重置 / 邮箱确认回跳：解析 URL 中的令牌并交换为会话
-    // 不调用这一步的话，邮件链接即使未过期也无法进入恢复会话，自然也就弹不出改密码界面
+    // 密码重置 / 邮箱确认回跳处理
+    // supabase-js v2 默认 detectSessionInUrl=true：客户端会自动解析 URL 中的令牌(哈希里的
+    // access_token 或 ?code=)并建立会话，随后触发 PASSWORD_RECOVERY 事件。
+    // 这里额外做一次兜底：万一事件在监听注册之前就已触发，则等会话就绪后手动弹出改密码界面。
     (function handleAuthRedirect() {
-      var hasToken = /[?&]code=/.test(window.location.search) || /[#&]access_token=/.test(window.location.hash);
-      if (!hasToken) return;
-      supabase.auth.getSessionFromUrl().then(function (res) {
-        if (res.error) {
-          toast('链接无效或已过期，请重新获取重置邮件', 'error');
+      var hash = window.location.hash || '';
+      var search = window.location.search || '';
+      var type = (hash.match(/[#&]type=([a-z_]+)/) || [])[1] || (search.match(/[?&]type=([a-z_]+)/) || [])[1];
+      var hasToken = /[#&]access_token=/.test(hash) || /[?&]code=/.test(search);
+      if (type !== 'recovery' && !hasToken) return;
+
+      // 等 supabase 自动解析完 URL 令牌
+      setTimeout(function () {
+        supabase.auth.getSession().then(function (res) {
+          // 清理地址栏令牌，避免刷新页面时重复触发
           history.replaceState(null, '', window.location.pathname);
-          return;
-        }
-        // 清理地址栏令牌，避免刷新页面时重复触发
-        history.replaceState(null, '', window.location.pathname);
-      });
+          if (type === 'recovery') {
+            if (res && res.data && res.data.session) {
+              openPasswordResetModal();
+            } else {
+              toast('链接无效或已过期，请重新获取重置邮件', 'error');
+            }
+          }
+        });
+      }, 400);
     })();
 
     // 登录页"忘记密码？" -> 发送重置邮件
