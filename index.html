@@ -249,6 +249,9 @@
           <input id="auth-password" type="password" placeholder="至少 6 位密码" required minlength="6" class="w-full" autocomplete="current-password" />
         </div>
         <button type="submit" id="auth-submit-btn" class="btn-primary w-full py-3 text-lg">登录</button>
+        <div class="mt-3 text-right">
+          <a href="javascript:void(0)" onclick="handleForgotPassword()" class="text-xs text-[#ff5c7f] hover:text-[#ff8fa3] cursor-pointer">忘记密码？</a>
+        </div>
       </form>
 
       <div id="auth-loading" style="display:none" class="text-center py-4">
@@ -343,6 +346,43 @@
     var SUPABASE_URL = 'https://fxbxytpczuvyjwmmfydh.supabase.co';
     var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ4Ynh5dHBjenV2eWp3bW1meWRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzNzM5MTIsImV4cCI6MjEwMDk0OTkxMn0.lyErYLQ5g380LoE9wDShu_1i9F25JfUovyLx_FOdwL8';
     var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // 监听认证状态：密码重置邮件回跳后进入"恢复"会话，弹出设新密码界面
+    supabase.auth.onAuthStateChange(function (event) {
+      if (event === 'PASSWORD_RECOVERY') {
+        openPasswordResetModal();
+      }
+    });
+
+    // 密码重置 / 邮箱确认回跳：解析 URL 中的令牌并交换为会话
+    // 不调用这一步的话，邮件链接即使未过期也无法进入恢复会话，自然也就弹不出改密码界面
+    (function handleAuthRedirect() {
+      var hasToken = /[?&]code=/.test(window.location.search) || /[#&]access_token=/.test(window.location.hash);
+      if (!hasToken) return;
+      supabase.auth.getSessionFromUrl().then(function (res) {
+        if (res.error) {
+          toast('链接无效或已过期，请重新获取重置邮件', 'error');
+          history.replaceState(null, '', window.location.pathname);
+          return;
+        }
+        // 清理地址栏令牌，避免刷新页面时重复触发
+        history.replaceState(null, '', window.location.pathname);
+      });
+    })();
+
+    // 登录页"忘记密码？" -> 发送重置邮件
+    function handleForgotPassword() {
+      var emailEl = document.getElementById('auth-email');
+      var email = emailEl ? emailEl.value.trim() : '';
+      if (!email) { toast('请先在上方输入邮箱', 'error'); if (emailEl) emailEl.focus(); return; }
+      var loading = document.getElementById('auth-loading');
+      if (loading) loading.style.display = 'block';
+      supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/' }).then(function (res) {
+        if (loading) loading.style.display = 'none';
+        if (res.error) { toast(res.error.message, 'error'); return; }
+        toast('重置邮件已发送，请查收邮箱（链接 1 小时内有效）', 'success');
+      });
+    }
 
     // ==================== 全局状态 ====================
     var currentView = 'home';
@@ -2317,6 +2357,53 @@ window.readLunarDate = function() {
     function closeGrudgeModal() {
       var el = document.getElementById('grudge-modal-container');
       if (el) el.remove();
+    }
+
+    // ==================== 密码重置弹窗 ====================
+    function openPasswordResetModal() {
+      closePasswordResetModal();
+      var html = '<div class="modal-overlay" id="pwreset-modal" onclick="if(event.target===this)closePasswordResetModal()">' +
+        '<div class="modal-content p-4 md:p-6 fade-in">' +
+          '<div class="flex items-center justify-between mb-4">' +
+            '<div class="font-bold text-base md:text-lg">设置新密码</div>' +
+            '<button class="text-[#8c7e75] hover:text-[#ff5c7f] border-none bg-transparent cursor-pointer text-xl" onclick="closePasswordResetModal()">×</button>' +
+          '</div>' +
+          '<p class="text-xs md:text-sm text-[#8c7e75] mb-3">检测到通过邮件链接进入，请输入新的登录密码。</p>' +
+          '<div class="mb-4">' +
+            '<label class="block text-sm font-medium text-[#4a3f3a] mb-1">新密码</label>' +
+            '<input id="pwreset-password" type="password" placeholder="至少 6 位" minlength="6" class="w-full" autocomplete="new-password" />' +
+          '</div>' +
+          '<button class="btn-primary w-full py-2.5 text-base" onclick="submitPasswordReset()">确认修改</button>' +
+        '</div></div>';
+      var modal = document.createElement('div');
+      modal.id = 'pwreset-modal-container';
+      modal.innerHTML = html;
+      document.body.appendChild(modal);
+      setTimeout(function () {
+        var el = document.getElementById('pwreset-password');
+        if (el) el.focus();
+      }, 50);
+    }
+
+    function closePasswordResetModal() {
+      var el = document.getElementById('pwreset-modal-container');
+      if (el) el.remove();
+    }
+
+    function submitPasswordReset() {
+      var pwdEl = document.getElementById('pwreset-password');
+      var pwd = pwdEl ? pwdEl.value : '';
+      if (!pwd || pwd.length < 6) { toast('密码至少 6 位', 'error'); if (pwdEl) pwdEl.focus(); return; }
+      var loading = document.getElementById('auth-loading');
+      if (loading) loading.style.display = 'block';
+      supabase.auth.updateUser({ password: pwd }).then(function (res) {
+        if (loading) loading.style.display = 'none';
+        if (res.error) { toast(res.error.message, 'error'); return; }
+        closePasswordResetModal();
+        toast('密码修改成功！请用新密码登录', 'success');
+        // 清理地址栏并回到干净登录页
+        setTimeout(function () { window.location.href = window.location.pathname; }, 1200);
+      });
     }
 
     async function saveGrudge() {
