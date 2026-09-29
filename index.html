@@ -2083,9 +2083,49 @@ window.readLunarDate = function() {
       box.innerHTML = html;
     }
 
+    // 数据库是否还没加 images 字段（未执行 images_setup.sql）。
+    // 一旦探测到就置 true，后续跳过图片上传与图片字段，保证文字内容永远能保存。
+    var imagesColumnMissing = false;   // 数据库缺少 images 字段
+    var storageBucketMissing = false;  // 存储桶 workbench-images 不存在
+    var imageUploadFailed = false;     // 本次有图片上传失败
+    var imageFeatureBlocked = false;   // 本次确实想存图，但后端未就绪
+
+    // 保存成功后的提示语：图片没能保存时给出明确、可操作的提示
+    function imageSaveWarning() {
+      if (imageFeatureBlocked) return '文字内容已保存，图片未保存：请先在 Supabase 执行 images_setup.sql';
+      if (imageUploadFailed) return '文字内容已保存，部分图片上传失败，已忽略';
+      return '';
+    }
+
+    function isMissingImagesColumnError(err) {
+      if (!err) return false;
+      var m = String(err.message || err.details || err.hint || '');
+      if (!m) return false;
+      return /images/i.test(m) && /(column|schema cache|could not find)/i.test(m);
+    }
+
+    // 优雅降级：先带 images 字段保存，若后端报「找不到 images 字段」，自动去掉该字段重试
+    async function saveWithImagesFallback(payload, runFn) {
+      var r = await runFn(payload);
+      if (!r || !r.error || !isMissingImagesColumnError(r.error)) return r;
+      imagesColumnMissing = true;
+      if (payload.images && payload.images.length) imageFeatureBlocked = true;
+      var fallback = {};
+      for (var k in payload) {
+        if (Object.prototype.hasOwnProperty.call(payload, k) && k !== 'images') fallback[k] = payload[k];
+      }
+      return runFn(fallback);
+    }
+
     // 上传待上传图片到 Supabase Storage，返回最终要保存的 URL 数组（保留的 + 新上传的）
     // 设计为「尽力而为」：单张失败不抛异常，仅提示，保证文字内容始终能保存
     async function uploadModalImages(bucket) {
+      imageUploadFailed = false;
+      imageFeatureBlocked = false;
+      if (imagesColumnMissing) {
+        if (currentModalImages.added.length) imageFeatureBlocked = true;
+        return [];
+      }
       var removedSet = currentModalImages.removed;
       var urls = [];
       for (var i = 0; i < currentModalImages.existing.length; i++) {
@@ -2093,17 +2133,21 @@ window.readLunarDate = function() {
         if (removedSet.indexOf(u) === -1) urls.push(u);
       }
       var wsId = (currentWorkspace && currentWorkspace.id) ? currentWorkspace.id : 'workspace';
-      var uploadFailed = false;
       for (var j = 0; j < currentModalImages.added.length; j++) {
         var file = currentModalImages.added[j];
         var safeName = (file.name || 'image').replace(/[^\w.\-]+/g, '_');
         var path = wsId + '/' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + safeName;
         var up = await supabase.storage.from(bucket).upload(path, file, { cacheControl: '3600', upsert: false });
-        if (up.error) { console.error('image upload failed:', up.error); uploadFailed = true; continue; }
+        if (up.error) {
+          console.error('image upload failed:', up.error);
+          imageUploadFailed = true;
+          imageFeatureBlocked = true;
+          if (/bucket/i.test(String(up.error.message || ''))) storageBucketMissing = true;
+          continue;
+        }
         var pub = supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
         urls.push(pub);
       }
-      if (uploadFailed) toast('部分图片上传失败，已忽略', 'error');
       return urls;
     }
 
@@ -2332,9 +2376,9 @@ window.readLunarDate = function() {
 
       var result;
       if (editingCollectionId) {
-        result = await supabase.from('collections').update(payload).eq('id', editingCollectionId);
+        result = await saveWithImagesFallback(payload, function (p) { return supabase.from('collections').update(p).eq('id', editingCollectionId); });
       } else {
-        result = await supabase.from('collections').insert(payload);
+        result = await saveWithImagesFallback(payload, function (p) { return supabase.from('collections').insert(p); });
       }
 
       if (result.error) {
@@ -2346,7 +2390,8 @@ window.readLunarDate = function() {
       var isEdit = !!editingCollectionId;
       closeCollectionModal();
       editingCollectionId = null;
-      toast(isEdit ? '更新成功' : '创建成功', 'success');
+      var imgWarn = imageSaveWarning();
+      if (imgWarn) { toast(imgWarn, 'error'); } else { toast(isEdit ? '更新成功' : '创建成功', 'success'); }
       render();
     }
 
@@ -2799,16 +2844,17 @@ window.readLunarDate = function() {
       var payload = { workspace_id: currentWorkspace.id, name: name, merchant: merchant || null, note: note || null, images: (images && images.length) ? images : null };
       var r;
       if (isEdit) {
-        r = await supabase.from('plant_items').update(payload).eq('id', editingPlantItemId);
+        r = await saveWithImagesFallback(payload, function (p) { return supabase.from('plant_items').update(p).eq('id', editingPlantItemId); });
       } else {
         payload.category_id = categoryId;
         payload.created_by = currentUser.id;
-        r = await supabase.from('plant_items').insert(payload);
+        r = await saveWithImagesFallback(payload, function (p) { return supabase.from('plant_items').insert(p); });
       }
       if (r.error) { toast(r.error.message, 'error'); return; }
       closePlantItemModal();
       editingPlantItemId = null;
-      toast(isEdit ? '已更新' : '已添加', 'success');
+      var imgWarn = imageSaveWarning();
+      if (imgWarn) { toast(imgWarn, 'error'); } else { toast(isEdit ? '已更新' : '已添加', 'success'); }
       render();
     }
 
