@@ -2025,11 +2025,94 @@ window.readLunarDate = function() {
       render();
     }
 // ==================== 收藏 ====================
+    // ==================== 公共：相册图片上传（收藏 / 种草 共用） ====================
+    var MAX_IMAGE_SIZE = 5 * 1024 * 1024;                       // 单张上限 5MB
+    var ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+    var IMAGE_MAX_COUNT = 3;                                    // 最多 3 张
+    // 当前弹窗的图片状态：existing 已存 URL，added 待上传文件，removed 被移除的 URL
+    var currentModalImages = { existing: [], added: [], removed: [] };
+
+    function initModalImages(existingUrls) {
+      currentModalImages = { existing: (existingUrls || []).slice(), added: [], removed: [] };
+      renderImagePreview();
+    }
+
+    function handleImageFiles(fileList, inputEl) {
+      var files = Array.prototype.slice.call(fileList || []);
+      for (var i = 0; i < files.length; i++) {
+        var f = files[i];
+        if (ALLOWED_IMAGE_TYPES.indexOf(f.type) === -1) { toast('仅支持 JPG / PNG / WEBP 格式', 'error'); continue; }
+        if (f.size > MAX_IMAGE_SIZE) { toast('单张图片不能超过 5MB', 'error'); continue; }
+        var total = currentModalImages.existing.length - currentModalImages.removed.length + currentModalImages.added.length;
+        if (total >= IMAGE_MAX_COUNT) { toast('最多上传 ' + IMAGE_MAX_COUNT + ' 张图片', 'error'); break; }
+        currentModalImages.added.push(f);
+      }
+      if (inputEl) inputEl.value = '';
+      renderImagePreview();
+    }
+
+    function removeModalImage(kind, idx) {
+      if (kind === 'existing') {
+        var url = currentModalImages.existing[idx];
+        if (currentModalImages.removed.indexOf(url) === -1) currentModalImages.removed.push(url);
+      } else {
+        currentModalImages.added.splice(idx, 1);
+      }
+      renderImagePreview();
+    }
+
+    function imgThumbHtml(src, kind, idx) {
+      return '<div class="relative inline-block w-20 h-20 md:w-24 md:h-24 rounded-xl overflow-hidden border border-[#e9e2dd]">' +
+        '<img src="' + escapeHtml(src) + '" class="w-full h-full object-cover" alt="" />' +
+        '<button type="button" class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/50 text-white text-xs leading-none flex items-center justify-center" onclick="removeModalImage(\'' + kind + '\',' + idx + ')">×</button>' +
+        '</div>';
+    }
+
+    function renderImagePreview() {
+      var box = document.getElementById('image-preview-box');
+      if (!box) return;
+      var removedSet = currentModalImages.removed;
+      var html = '';
+      for (var i = 0; i < currentModalImages.existing.length; i++) {
+        if (removedSet.indexOf(currentModalImages.existing[i]) !== -1) continue;
+        html += imgThumbHtml(currentModalImages.existing[i], 'existing', i);
+      }
+      for (var j = 0; j < currentModalImages.added.length; j++) {
+        html += imgThumbHtml(URL.createObjectURL(currentModalImages.added[j]), 'added', j);
+      }
+      box.innerHTML = html;
+    }
+
+    // 上传待上传图片到 Supabase Storage，返回最终要保存的 URL 数组（保留的 + 新上传的）
+    // 设计为「尽力而为」：单张失败不抛异常，仅提示，保证文字内容始终能保存
+    async function uploadModalImages(bucket) {
+      var removedSet = currentModalImages.removed;
+      var urls = [];
+      for (var i = 0; i < currentModalImages.existing.length; i++) {
+        var u = currentModalImages.existing[i];
+        if (removedSet.indexOf(u) === -1) urls.push(u);
+      }
+      var wsId = (currentWorkspace && currentWorkspace.id) ? currentWorkspace.id : 'workspace';
+      var uploadFailed = false;
+      for (var j = 0; j < currentModalImages.added.length; j++) {
+        var file = currentModalImages.added[j];
+        var safeName = (file.name || 'image').replace(/[^\w.\-]+/g, '_');
+        var path = wsId + '/' + Date.now() + '_' + Math.random().toString(36).slice(2, 8) + '_' + safeName;
+        var up = await supabase.storage.from(bucket).upload(path, file, { cacheControl: '3600', upsert: false });
+        if (up.error) { console.error('image upload failed:', up.error); uploadFailed = true; continue; }
+        var pub = supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
+        urls.push(pub);
+      }
+      if (uploadFailed) toast('部分图片上传失败，已忽略', 'error');
+      return urls;
+    }
+
     var COLLECTION_CATEGORIES = [
       { key: 'movie', label: '影视', icon: '🎬' },
       { key: 'book', label: '书籍', icon: '📚' },
       { key: 'kids_book', label: '儿童读物', icon: '📖' },
       { key: 'kids_movie', label: '儿童影视', icon: '🧸' },
+      { key: 'daily', label: '日常用品', icon: '🧺' },
       { key: 'other', label: '其他', icon: '📌' }
     ];
     var collectionSearchKeyword = '';
@@ -2119,6 +2202,7 @@ window.readLunarDate = function() {
                 '<div class="font-medium text-sm md:text-base truncate">' + escapeHtml(item.title) + '</div>' +
                 (item.note ? '<div class="text-xs md:text-sm text-[#8c7e75] mt-1 line-clamp-2">' + escapeHtml(item.note) + '</div>' : '') +
                 (tagsHtml ? '<div class="flex flex-wrap gap-1.5 mt-2">' + tagsHtml + '</div>' : '') +
+                (item.images && item.images.length ? '<div class="flex gap-1.5 mt-2 flex-wrap">' + item.images.map(function(u){ return '<img src="' + escapeHtml(u) + '" class="w-14 h-14 rounded-lg object-cover cursor-pointer" onclick="window.open(this.src,\'_blank\')" />'; }).join('') + '</div>' : '') +
               '</div>' +
               '<div class="flex gap-1 flex-shrink-0">' +
                 '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-xs border-none bg-transparent cursor-pointer" onclick="openCollectionModal(\'' + cat.key + '\', \'' + item.id + '\')">编辑</button>' +
@@ -2195,6 +2279,15 @@ window.readLunarDate = function() {
               '<input id="collection-tags" type="text" value="' + escapeHtml(tags) + '" placeholder="悬疑, 科幻, 灾难, 剧情, 电影, 电视剧...（用逗号分隔）" class="w-full text-sm md:text-base" />' +
               '<div class="text-[10px] md:text-xs text-[#8c7e75] mt-1">多个标签用逗号或空格分隔</div>' +
             '</div>' +
+            '<div>' +
+              '<label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">图片（选填）</label>' +
+              '<div id="image-preview-box" class="flex flex-wrap gap-2 mb-2"></div>' +
+              '<label class="btn-soft inline-flex items-center gap-1 px-3 py-1.5 text-xs md:text-sm cursor-pointer">' +
+                '<input type="file" accept="image/jpeg,image/png,image/webp" multiple class="hidden" onchange="handleImageFiles(this.files, this)" />' +
+                '📷 从相册选择' +
+              '</label>' +
+              '<span class="text-[10px] md:text-xs text-[#8c7e75] ml-2">支持 JPG / PNG / WEBP，单张 ≤5MB，最多 ' + IMAGE_MAX_COUNT + ' 张</span>' +
+            '</div>' +
           '</div>' +
           '<div class="flex gap-3 mt-6">' +
             '<button class="btn-primary flex-1 py-2.5 text-sm md:text-base" onclick="saveCollection()">保存</button>' +
@@ -2207,6 +2300,7 @@ window.readLunarDate = function() {
       modal.id = 'collection-modal-container';
       modal.innerHTML = html;
       document.body.appendChild(modal);
+      initModalImages(existing ? (existing.images || []) : []);
     }
     function closeCollectionModal() {
       var el = document.getElementById('collection-modal-container');
@@ -2223,12 +2317,16 @@ window.readLunarDate = function() {
 
       var tags = tagsInput.split(/[,，\s]+/).map(function(t) { return t.trim(); }).filter(function(t) { return !!t; });
 
+      var images = null;
+      try { images = await uploadModalImages('workbench-images'); } catch (e) { console.error('image upload error', e); }
+
       var payload = {
         workspace_id: currentWorkspace.id,
         category: category,
         title: title,
         note: note || null,
         tags: tags,
+        images: (images && images.length) ? images : null,
         created_by: currentUser.id
       };
 
@@ -2537,6 +2635,7 @@ window.readLunarDate = function() {
                   '<div class="font-semibold text-sm md:text-base break-all">' + escapeHtml(p.name) + '</div>' +
                   (p.merchant ? '<div class="text-[10px] md:text-xs text-[#8c7e75] mt-0.5">商家：' + escapeHtml(p.merchant) + '</div>' : '') +
                   (p.note ? '<div class="text-xs md:text-sm text-[#4a3f3a] mt-1 whitespace-pre-wrap break-words">' + escapeHtml(p.note) + '</div>' : '') +
+                  (p.images && p.images.length ? '<div class="flex gap-1.5 mt-2 flex-wrap">' + p.images.map(function(u){ return '<img src="' + escapeHtml(u) + '" class="w-14 h-14 rounded-lg object-cover cursor-pointer" onclick="window.open(this.src,\'_blank\')" />'; }).join('') + '</div>' : '') +
                 '</div>' +
                 '<div class="flex items-center gap-1 md:gap-2 flex-shrink-0 flex-wrap justify-end">' +
                   '<button class="' + (planted ? 'bg-[#dcfce7] text-[#16a34a]' : 'bg-white text-[#8c7e75]') + ' border border-[#f3e8e2] rounded-lg px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm cursor-pointer" onclick="togglePlantStatus(\'' + p.id + '\',\'planted\')">✅ 种草</button>' +
@@ -2658,6 +2757,15 @@ window.readLunarDate = function() {
             '<div><label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">品名</label><input id="plant-item-name" type="text" value="' + escapeHtml(name) + '" placeholder="如：初恋玫瑰青提" class="w-full text-sm md:text-base" /></div>' +
             '<div><label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">商家</label><input id="plant-item-merchant" type="text" value="' + escapeHtml(merchant) + '" placeholder="如：爷爷不泡茶" class="w-full text-sm md:text-base" /></div>' +
             '<div><label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">备注</label><textarea id="plant-item-note" rows="4" placeholder="口感、避雷点、链接..." class="w-full text-sm md:text-base resize-none">' + escapeHtml(note) + '</textarea></div>' +
+            '<div>' +
+              '<label class="block text-xs md:text-sm font-medium text-[#4a3f3a] mb-1">图片（选填）</label>' +
+              '<div id="image-preview-box" class="flex flex-wrap gap-2 mb-2"></div>' +
+              '<label class="btn-soft inline-flex items-center gap-1 px-3 py-1.5 text-xs md:text-sm cursor-pointer">' +
+                '<input type="file" accept="image/jpeg,image/png,image/webp" multiple class="hidden" onchange="handleImageFiles(this.files, this)" />' +
+                '📷 从相册选择' +
+              '</label>' +
+              '<span class="text-[10px] md:text-xs text-[#8c7e75] ml-2">支持 JPG / PNG / WEBP，单张 ≤5MB，最多 ' + IMAGE_MAX_COUNT + ' 张</span>' +
+            '</div>' +
           '</div>' +
           '<div class="flex gap-3 mt-6">' +
             '<button class="btn-primary flex-1 py-2.5 text-sm md:text-base" onclick="savePlantItem(\'' + categoryId + '\')">保存</button>' +
@@ -2668,6 +2776,7 @@ window.readLunarDate = function() {
       modal.id = 'plant-item-modal-container';
       modal.innerHTML = html;
       document.body.appendChild(modal);
+      initModalImages(existing ? (existing.images || []) : []);
     }
 
     function closePlantItemModal() {
@@ -2684,7 +2793,10 @@ window.readLunarDate = function() {
       var note = document.getElementById('plant-item-note').value.trim();
       var isEdit = !!editingPlantItemId;
 
-      var payload = { workspace_id: currentWorkspace.id, name: name, merchant: merchant || null, note: note || null };
+      var images = null;
+      try { images = await uploadModalImages('workbench-images'); } catch (e) { console.error('image upload error', e); }
+
+      var payload = { workspace_id: currentWorkspace.id, name: name, merchant: merchant || null, note: note || null, images: (images && images.length) ? images : null };
       var r;
       if (isEdit) {
         r = await supabase.from('plant_items').update(payload).eq('id', editingPlantItemId);

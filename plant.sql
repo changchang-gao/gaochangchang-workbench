@@ -22,6 +22,7 @@ create table plant_items (
   merchant text,
   note text,
   status text check (status in ('planted', 'pulled')),
+  images text[] default '{}',
   created_by uuid references auth.users(id),
   created_at timestamp with time zone default now()
 );
