@@ -345,14 +345,91 @@
     // ==================== Supabase 初始化 ====================
     var SUPABASE_URL = 'https://fxbxytpczuvyjwmmfydh.supabase.co';
     var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ4Ynh5dHBjenV2eWp3bW1meWRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzNzM5MTIsImV4cCI6MjEwMDk0OTkxMn0.lyErYLQ5g380LoE9wDShu_1i9F25JfUovyLx_FOdwL8';
-    var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // 监听认证状态：密码重置邮件回跳后进入"恢复"会话，弹出设新密码界面
-    supabase.auth.onAuthStateChange(function (event) {
-      if (event === 'PASSWORD_RECOVERY') {
-        openPasswordResetModal();
+    // 备用线路：同域名下的反向代理（/sb/* → Supabase，由 functions/sb/[[path]].js 提供）
+    // 用于部分网络无法直连 *.supabase.co 的情况（手机上很常见，浏览器只报 "Load failed"）
+    var SUPABASE_PROXY_URL = window.location.origin + '/sb';
+
+    // 两条线路必须共用同一个本地会话 key，否则切换线路后登录态会丢
+    var SUPABASE_CLIENT_OPTIONS = {
+      auth: {
+        storageKey: 'sb-fxbxytpczuvyjwmmfydh-auth-token',
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
       }
-    });
+    };
+
+    function createSbClient(url) {
+      var client = window.supabase.createClient(url, SUPABASE_ANON_KEY, SUPABASE_CLIENT_OPTIONS);
+      // 监听认证状态：密码重置邮件回跳后进入"恢复"会话，弹出设新密码界面
+      client.auth.onAuthStateChange(function (event) {
+        if (event === 'PASSWORD_RECOVERY') {
+          openPasswordResetModal();
+        }
+      });
+      return client;
+    }
+
+    var supabase = createSbClient(SUPABASE_URL);
+    var networkSwitched = false;   // 是否已切到备用线路
+    var proxyTried = false;        // 备用线路已试过就不再反复切
+
+    // 识别「网络层失败」——Safari 报 Load failed，Chrome 报 Failed to fetch，微信/安卓报 Network Error
+    function isNetworkError(e) {
+      if (!e) return false;
+      var m = String(e.message || e.error_description || e.details || e);
+      return /load failed|failed to fetch|networkerror|network request failed|network error|fetch failed|timed out|timeout|connection|aborted/i.test(m);
+    }
+
+    function canUseProxy() {
+      if (proxyTried) return false;
+      var h = window.location.hostname;
+      return window.location.protocol.indexOf('http') === 0 && h !== 'localhost' && h !== '127.0.0.1';
+    }
+
+    // 先探测备用线路是否真的可用（代理函数没部署时会返回 404 页面），避免切过去反而报奇怪的错
+    async function probeProxy() {
+      try {
+        var res = await fetch(SUPABASE_PROXY_URL + '/auth/v1/health', {
+          headers: { apikey: SUPABASE_ANON_KEY },
+          cache: 'no-store'
+        });
+        if (!res.ok) return false;
+        var j = await res.json();
+        return !!(j && j.name);
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function switchToProxy() {
+      networkSwitched = true;
+      supabase = createSbClient(SUPABASE_PROXY_URL);
+      console.warn('直连 Supabase 失败，已切换到备用线路：' + SUPABASE_PROXY_URL);
+    }
+
+    // 统一容错：先直连，出现网络类错误且备用线路可用时切过去重试一次
+    // fn 内部必须用全局 supabase（切换后自然生效）
+    async function withNetworkFallback(fn) {
+      try {
+        return await fn();
+      } catch (e) {
+        if (isNetworkError(e) && canUseProxy()) {
+          proxyTried = true;
+          if (await probeProxy()) {
+            switchToProxy();
+            toast('直连不畅，已切换备用线路，正在重试…', 'info');
+            return await fn();
+          }
+        }
+        if (isNetworkError(e)) {
+          throw new Error('连不上数据服务（' + (networkSwitched ? '备用线路也失败了' : '网络不通') +
+            '）。请检查手机网络后重试，或先连 WiFi；若开着 VPN／加速器，可试试关掉再登录。');
+        }
+        throw e;
+      }
+    }
 
     // 密码重置 / 邮箱确认回跳处理
     // supabase-js v2 默认 detectSessionInUrl=true：客户端会自动解析 URL 中的令牌(哈希里的
@@ -726,27 +803,32 @@ window.readLunarDate = function() {
       try {
         var result;
         if (authMode === 'register') {
-          result = await supabase.auth.signUp({
-            email: email,
-            password: password,
-            options: { data: { name: name } }
+          var needConfirm = false;
+          await withNetworkFallback(async function () {
+            result = await supabase.auth.signUp({
+              email: email,
+              password: password,
+              options: { data: { name: name } }
+            });
+            if (result.error) throw result.error;
+            if (result.data.user && result.data.session) {
+              toast('注册成功！', 'success');
+              await loadApp();
+            } else {
+              needConfirm = true;
+            }
           });
-          if (result.error) throw result.error;
-
-          if (result.data.user && result.data.session) {
-            // 自动确认了，直接加载
-            toast('注册成功！', 'success');
-            await loadApp();
-          } else {
-            // 需要邮箱确认
+          if (needConfirm) {
             toast('注册成功！请检查邮箱中的确认链接，然后返回登录。', 'info');
             form.style.display = 'block';
             loading.style.display = 'none';
           }
         } else {
-          result = await supabase.auth.signInWithPassword({ email: email, password: password });
-          if (result.error) throw result.error;
-          await loadApp();
+          await withNetworkFallback(async function () {
+            var r = await supabase.auth.signInWithPassword({ email: email, password: password });
+            if (r.error) throw r.error;
+            await loadApp();
+          });
         }
       } catch (err) {
         form.style.display = 'block';
@@ -770,9 +852,15 @@ window.readLunarDate = function() {
     }
 
     // ==================== 应用加载 ====================
+    // 外层包一层网络容错：直连失败自动切备用线路重试
     async function loadApp() {
+      return await withNetworkFallback(loadAppInner);
+    }
+
+    async function loadAppInner() {
       var _a;
       var userResult = await supabase.auth.getUser();
+      if (userResult.error && isNetworkError(userResult.error)) throw userResult.error;
       if (!userResult.data.user) return;
       currentUser = userResult.data.user;
 
@@ -784,6 +872,8 @@ window.readLunarDate = function() {
         .limit(1);
 
       if (memResult.error) {
+        // 网络类错误往上抛，交给 withNetworkFallback 切线路重试
+        if (isNetworkError(memResult.error)) throw memResult.error;
         toast('加载工作空间失败：' + memResult.error.message, 'error');
         console.error('workspace_members query error:', memResult.error);
         return;
@@ -2991,7 +3081,16 @@ window.readLunarDate = function() {
       // 检查是否已登录
       var sessionResult = await supabase.auth.getSession();
       if (sessionResult.data.session) {
-        await loadApp();
+        try {
+          await loadApp();
+        } catch (e) {
+          // 已有登录态但连不上数据服务：回到登录页并说明原因，避免白屏
+          console.error('loadApp failed:', e);
+          document.getElementById('auth-page').style.display = 'flex';
+          document.getElementById('app-page').style.display = 'none';
+          toast(e.message || '网络异常，请稍后重试', 'error');
+          return;
+        }
 
         // 处理邀请链接
         var params = new URLSearchParams(window.location.search);
