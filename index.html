@@ -2151,9 +2151,16 @@ window.readLunarDate = function() {
       renderImagePreview();
     }
 
+    // 已保存的图片地址指向 supabase.co；当前若走备用线路，渲染时改写到同域代理，避免裂图
+    function mediaUrl(u) {
+      if (!u || !networkSwitched) return u;
+      if (u.indexOf(SUPABASE_URL) === 0) return SUPABASE_PROXY_URL + u.slice(SUPABASE_URL.length);
+      return u;
+    }
+
     function imgThumbHtml(src, kind, idx) {
       return '<div class="relative inline-block w-20 h-20 md:w-24 md:h-24 rounded-xl overflow-hidden border border-[#e9e2dd]">' +
-        '<img src="' + escapeHtml(src) + '" class="w-full h-full object-cover" alt="" />' +
+        '<img src="' + escapeHtml(mediaUrl(src)) + '" class="w-full h-full object-cover" alt="" />' +
         '<button type="button" class="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/50 text-white text-xs leading-none flex items-center justify-center" onclick="removeModalImage(\'' + kind + '\',' + idx + ')">×</button>' +
         '</div>';
     }
@@ -2336,7 +2343,7 @@ window.readLunarDate = function() {
                 '<div class="font-medium text-sm md:text-base truncate">' + escapeHtml(item.title) + '</div>' +
                 (item.note ? '<div class="text-xs md:text-sm text-[#8c7e75] mt-1 line-clamp-2">' + escapeHtml(item.note) + '</div>' : '') +
                 (tagsHtml ? '<div class="flex flex-wrap gap-1.5 mt-2">' + tagsHtml + '</div>' : '') +
-                (item.images && item.images.length ? '<div class="flex gap-1.5 mt-2 flex-wrap">' + item.images.map(function(u){ return '<img src="' + escapeHtml(u) + '" class="w-14 h-14 rounded-lg object-cover cursor-pointer" onclick="window.open(this.src,\'_blank\')" />'; }).join('') + '</div>' : '') +
+                (item.images && item.images.length ? '<div class="flex gap-1.5 mt-2 flex-wrap">' + item.images.map(function(u){ return '<img src="' + escapeHtml(mediaUrl(u)) + '" class="w-14 h-14 rounded-lg object-cover cursor-pointer" onclick="window.open(this.src,\'_blank\')" />'; }).join('') + '</div>' : '') +
               '</div>' +
               '<div class="flex gap-1 flex-shrink-0">' +
                 '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-xs border-none bg-transparent cursor-pointer" onclick="openCollectionModal(\'' + cat.key + '\', \'' + item.id + '\')">编辑</button>' +
@@ -2770,7 +2777,7 @@ window.readLunarDate = function() {
                   '<div class="font-semibold text-sm md:text-base break-all">' + escapeHtml(p.name) + '</div>' +
                   (p.merchant ? '<div class="text-[10px] md:text-xs text-[#8c7e75] mt-0.5">商家：' + escapeHtml(p.merchant) + '</div>' : '') +
                   (p.note ? '<div class="text-xs md:text-sm text-[#4a3f3a] mt-1 whitespace-pre-wrap break-words">' + escapeHtml(p.note) + '</div>' : '') +
-                  (p.images && p.images.length ? '<div class="flex gap-1.5 mt-2 flex-wrap">' + p.images.map(function(u){ return '<img src="' + escapeHtml(u) + '" class="w-14 h-14 rounded-lg object-cover cursor-pointer" onclick="window.open(this.src,\'_blank\')" />'; }).join('') + '</div>' : '') +
+                  (p.images && p.images.length ? '<div class="flex gap-1.5 mt-2 flex-wrap">' + p.images.map(function(u){ return '<img src="' + escapeHtml(mediaUrl(u)) + '" class="w-14 h-14 rounded-lg object-cover cursor-pointer" onclick="window.open(this.src,\'_blank\')" />'; }).join('') + '</div>' : '') +
                 '</div>' +
                 '<div class="flex items-center gap-1 md:gap-2 flex-shrink-0 flex-wrap justify-end">' +
                   '<button class="' + (planted ? 'bg-[#dcfce7] text-[#16a34a]' : 'bg-white text-[#8c7e75]') + ' border border-[#f3e8e2] rounded-lg px-2 md:px-3 py-1 md:py-1.5 text-xs md:text-sm cursor-pointer" onclick="togglePlantStatus(\'' + p.id + '\',\'planted\')">✅ 种草</button>' +
