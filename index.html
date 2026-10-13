@@ -4,8 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>定制工作台</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 依赖库本地化（同源加载），避免手机流量下外部 CDN 被拦截导致脚本加载失败 -->
+  <script src="/vendor/supabase-js.js"></script>
+  <script src="/vendor/tailwind.js"></script>
+  <script>
+    // 兜底：本地库异常时，同步回退到 CDN（head 解析阶段 document.write 为同步阻塞加载）
+    if (!(window.supabase && typeof window.supabase.createClient === 'function')) {
+      document.write('<scr' + 'ipt src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"><\/scr' + 'ipt>');
+      document.write('<scr' + 'ipt src="https://unpkg.com/@supabase/supabase-js@2"><\/scr' + 'ipt>');
+    }
+    if (!window.tailwind) {
+      document.write('<scr' + 'ipt src="https://cdn.tailwindcss.com"><\/scr' + 'ipt>');
+    }
+  </script>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet" />
   <style>
     :root {
@@ -360,7 +371,15 @@
       }
     };
 
+    // 数据组件是否存在（外部 CDN/本地文件都可能加载失败）
+    function sbLibReady() {
+      return !!(window.supabase && typeof window.supabase.createClient === 'function');
+    }
+
     function createSbClient(url) {
+      if (!sbLibReady()) {
+        throw new Error('数据组件未加载完成');
+      }
       var client = window.supabase.createClient(url, SUPABASE_ANON_KEY, SUPABASE_CLIENT_OPTIONS);
       // 监听认证状态：密码重置邮件回跳后进入"恢复"会话，弹出设新密码界面
       client.auth.onAuthStateChange(function (event) {
@@ -371,7 +390,32 @@
       return client;
     }
 
-    var supabase = createSbClient(SUPABASE_URL);
+    // 初始化客户端；若数据组件未能加载，给出可读提示而不是整页报错
+    var supabase = null;
+    try {
+      supabase = createSbClient(SUPABASE_URL);
+    } catch (e) {
+      console.error('Supabase 初始化失败：', e);
+      window.__sbInitError = true;
+    }
+    // 数据组件加载失败时，等页面渲染后展示友好提示并提供重试
+    window.addEventListener('DOMContentLoaded', function () {
+      if (window.__sbInitError || !supabase) {
+        var el = document.getElementById('loading') || document.body;
+        if (el) {
+          el.innerHTML =
+            '<div style="max-width:340px;margin:15vh auto;padding:24px;border-radius:16px;' +
+            'background:#fff;box-shadow:0 8px 30px rgba(0,0,0,.08);text-align:center;' +
+            'font-family:-apple-system,"Noto Sans SC",sans-serif;color:#4a3f3a">' +
+            '<div style="font-size:32px;margin-bottom:8px">📡</div>' +
+            '<div style="font-weight:600;font-size:16px;margin-bottom:8px">数据组件加载失败</div>' +
+            '<div style="font-size:13px;line-height:1.6;color:#8b7d76">可能是网络不稳定，请检查网络后刷新重试。</div>' +
+            '<button onclick="location.reload()" style="margin-top:16px;padding:10px 24px;border:0;' +
+            'border-radius:10px;background:#ff8fa3;color:#fff;font-size:14px;cursor:pointer">刷新重试</button>' +
+            '</div>';
+        }
+      }
+    });
     var networkSwitched = false;   // 是否已切到备用线路
     var proxyTried = false;        // 备用线路已试过就不再反复切
 
@@ -436,6 +480,7 @@
     // access_token 或 ?code=)并建立会话，随后触发 PASSWORD_RECOVERY 事件。
     // 这里额外做一次兜底：万一事件在监听注册之前就已触发，则等会话就绪后手动弹出改密码界面。
     (function handleAuthRedirect() {
+      if (!supabase) return;
       var hash = window.location.hash || '';
       var search = window.location.search || '';
       var type = (hash.match(/[#&]type=([a-z_]+)/) || [])[1] || (search.match(/[?&]type=([a-z_]+)/) || [])[1];
@@ -3085,6 +3130,8 @@ window.readLunarDate = function() {
 
     // ==================== 启动 ====================
     async function init() {
+      // 数据组件未加载成功时不继续（已由加载失败提示接管）
+      if (!supabase) return;
       // 检查是否已登录
       var sessionResult = await supabase.auth.getSession();
       if (sessionResult.data.session) {
