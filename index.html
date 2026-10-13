@@ -16,6 +16,11 @@
     if (!window.tailwind) {
       document.write('<scr' + 'ipt src="https://cdn.tailwindcss.com"><\/scr' + 'ipt>');
     }
+    // 关键：把「库引用」单独存一份。
+    // 主脚本里会声明同名的全局客户端变量 supabase（经典脚本中它与 window.supabase 是同一个变量），
+    // 会把库本身覆盖掉，导致后续 createClient 找不到。
+    window.__supabaseLib = (window.supabase && typeof window.supabase.createClient === 'function')
+      ? window.supabase : null;
   </script>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet" />
   <style>
@@ -371,16 +376,18 @@
       }
     };
 
-    // 数据组件是否存在（外部 CDN/本地文件都可能加载失败）
+    // 数据组件是否就绪。
+    // 注意：引用必须取自 window.__supabaseLib（head 里保存的库引用），
+    // 不能直接看 window.supabase —— 本脚本声明的全局客户端 `supabase` 会把它覆盖掉。
     function sbLibReady() {
-      return !!(window.supabase && typeof window.supabase.createClient === 'function');
+      return !!(window.__supabaseLib && typeof window.__supabaseLib.createClient === 'function');
     }
 
     function createSbClient(url) {
       if (!sbLibReady()) {
         throw new Error('数据组件未加载完成');
       }
-      var client = window.supabase.createClient(url, SUPABASE_ANON_KEY, SUPABASE_CLIENT_OPTIONS);
+      var client = window.__supabaseLib.createClient(url, SUPABASE_ANON_KEY, SUPABASE_CLIENT_OPTIONS);
       // 监听认证状态：密码重置邮件回跳后进入"恢复"会话，弹出设新密码界面
       client.auth.onAuthStateChange(function (event) {
         if (event === 'PASSWORD_RECOVERY') {
@@ -390,10 +397,22 @@
       return client;
     }
 
+    // ==================== 线路选择 ====================
+    // 部署环境默认走「同源代理 /sb」：与页面同域名，必然可达；
+    // 因为部分手机网络直连 *.supabase.co 会被拦截（Safari 只报 "Load failed"）。
+    // 本地开发（localhost / file）没有代理函数，走直连。
+    var isLocalHost = window.location.protocol === 'file:' ||
+      /^(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)$/.test(window.location.hostname);
+    var proxyAvailable = window.location.protocol.indexOf('http') === 0 && !isLocalHost;
+
+    var networkSwitched = proxyAvailable;  // 当前是否走代理线路
+    var proxyTried = false;                // 是否已尝试过换线路
+
     // 初始化客户端；若数据组件未能加载，给出可读提示而不是整页报错
     var supabase = null;
     try {
-      supabase = createSbClient(SUPABASE_URL);
+      supabase = createSbClient(networkSwitched ? SUPABASE_PROXY_URL : SUPABASE_URL);
+      if (networkSwitched) console.info('数据线路：同源代理 ' + SUPABASE_PROXY_URL);
     } catch (e) {
       console.error('Supabase 初始化失败：', e);
       window.__sbInitError = true;
@@ -416,9 +435,6 @@
         }
       }
     });
-    var networkSwitched = false;   // 是否已切到备用线路
-    var proxyTried = false;        // 备用线路已试过就不再反复切
-
     // 识别「网络层失败」——Safari 报 Load failed，Chrome 报 Failed to fetch，微信/安卓报 Network Error
     function isNetworkError(e) {
       if (!e) return false;
@@ -426,16 +442,10 @@
       return /load failed|failed to fetch|networkerror|network request failed|network error|fetch failed|timed out|timeout|connection|aborted/i.test(m);
     }
 
-    function canUseProxy() {
-      if (proxyTried) return false;
-      var h = window.location.hostname;
-      return window.location.protocol.indexOf('http') === 0 && h !== 'localhost' && h !== '127.0.0.1';
-    }
-
-    // 先探测备用线路是否真的可用（代理函数没部署时会返回 404 页面），避免切过去反而报奇怪的错
-    async function probeProxy() {
+    // 探测某条线路是否真的可用（避免切到不可用的线路）
+    async function probeLine(baseUrl) {
       try {
-        var res = await fetch(SUPABASE_PROXY_URL + '/auth/v1/health', {
+        var res = await fetch(baseUrl + '/auth/v1/health', {
           headers: { apikey: SUPABASE_ANON_KEY },
           cache: 'no-store'
         });
@@ -447,29 +457,32 @@
       }
     }
 
-    function switchToProxy() {
-      networkSwitched = true;
-      supabase = createSbClient(SUPABASE_PROXY_URL);
-      console.warn('直连 Supabase 失败，已切换到备用线路：' + SUPABASE_PROXY_URL);
+    // 是否还能换线路（直连 ↔ 同源代理，最多互相切换一次）
+    function canSwitchLine() {
+      if (proxyTried) return false;
+      if (networkSwitched) return true;   // 当前走代理 → 可回退直连
+      return proxyAvailable;              // 当前走直连 → 可切代理
     }
 
-    // 统一容错：先直连，出现网络类错误且备用线路可用时切过去重试一次
+    // 统一容错：当前线路出现网络类错误时，探测并切到另一条线路重试一次
     // fn 内部必须用全局 supabase（切换后自然生效）
     async function withNetworkFallback(fn) {
       try {
         return await fn();
       } catch (e) {
-        if (isNetworkError(e) && canUseProxy()) {
+        if (isNetworkError(e) && canSwitchLine()) {
+          var target = networkSwitched ? SUPABASE_URL : SUPABASE_PROXY_URL;
           proxyTried = true;
-          if (await probeProxy()) {
-            switchToProxy();
-            toast('直连不畅，已切换备用线路，正在重试…', 'info');
+          if (await probeLine(target)) {
+            networkSwitched = !networkSwitched;
+            supabase = createSbClient(target);
+            console.warn('当前线路不可用，已切换：' + target);
+            toast('网络不畅，已切换线路，正在重试…', 'info');
             return await fn();
           }
         }
         if (isNetworkError(e)) {
-          throw new Error('连不上数据服务（' + (networkSwitched ? '备用线路也失败了' : '网络不通') +
-            '）。请检查手机网络后重试，或先连 WiFi；若开着 VPN／加速器，可试试关掉再登录。');
+          throw new Error('连不上数据服务，请检查网络后重试；若开着 VPN／加速器，可试试关掉再登录。');
         }
         throw e;
       }
