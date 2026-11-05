@@ -314,8 +314,8 @@
           <span class="hidden md:block font-medium">游泳练习</span>
         </div>
         <div class="sidebar-item flex items-center gap-3 px-1.5 md:px-3 py-2.5 md:py-3 rounded-xl" data-view="plan" onclick="switchView('plan')">
-          <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">🚀</div>
-          <span class="hidden md:block font-medium">未来计划</span>
+          <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">💡</div>
+          <span class="hidden md:block font-medium">想法沉淀</span>
         </div>
         <div class="sidebar-item flex items-center gap-3 px-1.5 md:px-3 py-2.5 md:py-3 rounded-xl" data-view="plant" onclick="switchView('plant')">
           <div class="icon-box w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-base md:text-lg">🌱</div>
@@ -1002,7 +1002,7 @@ window.readLunarDate = function() {
 
       realtimeChannel = supabase.channel('ws-' + currentWorkspace.id);
 
-      var tables = ['memos', 'daily_templates', 'daily_task_instances', 'swimming_records', 'plans', 'schedules'];
+      var tables = ['memos', 'daily_templates', 'daily_task_instances', 'swimming_records', 'notes', 'schedules'];
       for (var i = 0; i < tables.length; i++) {
         (function(tbl) {
           realtimeChannel.on('postgres_changes',
@@ -1011,12 +1011,6 @@ window.readLunarDate = function() {
           );
         })(tables[i]);
       }
-
-      // plan_subtasks 通过 plan_id 关联
-      realtimeChannel.on('postgres_changes',
-        { event: '*', schema: 'public', table: 'plan_subtasks' },
-        function() { if (currentView === 'plan') render(); }
-      );
 
       realtimeChannel.subscribe();
     }
@@ -1056,7 +1050,7 @@ window.readLunarDate = function() {
         schedule: ['我的日程 📅', '记录生日、纪念日和重要日子，让美好不被遗忘。'],
         daily: ['七宝每日任务 🧒', '选择日期，自动生成每日任务，完成即打卡。'],
         swim: ['游泳练习 🏊', '记录每一次游泳的日期与时长，见证坚持的力量。'],
-        plan: ['未来计划 🚀', '把大目标拆成子任务，进度一点点推进。'],
+        plan: ['想法沉淀 💡', '记录日常灵感与小思路，文字 + 手绘，轻量又顺手。'],
         collection: ['收藏 ⭐', '收藏喜欢的电影、电视剧、书籍，随时翻阅。'],
         plant: ['种草 🌱', '记录日常好物与踩雷避雷，种草 or 拔草，一目了然。'],
         grudge: ['小本本 📓', '记下每一笔，新建、保存、编辑，一个都不放过。'],
@@ -1070,7 +1064,7 @@ window.readLunarDate = function() {
       else if (currentView === 'schedule') renderSchedule(container);
       else if (currentView === 'daily') renderDaily(container);
       else if (currentView === 'swim') renderSwim(container);
-      else if (currentView === 'plan') renderPlan(container);
+      else if (currentView === 'plan') renderNote(container);
       else if (currentView === 'collection') renderCollection(container);
       else if (currentView === 'plant') renderPlant(container);
       else if (currentView === 'grudge') renderGrudge(container);
@@ -1081,26 +1075,20 @@ window.readLunarDate = function() {
     async function renderHome(container) {
       var results = await Promise.all([
         supabase.from('memos').select('id,completed').eq('workspace_id', currentWorkspace.id),
-        supabase.from('plans').select('id, plan_subtasks(completed)').eq('workspace_id', currentWorkspace.id),
+        supabase.from('notes').select('id').eq('workspace_id', currentWorkspace.id),
         supabase.from('swimming_records').select('duration').eq('workspace_id', currentWorkspace.id),
         supabase.from('schedules').select('*').eq('workspace_id', currentWorkspace.id).order('date', { ascending: true })
       ]);
 
       var memos = results[0].data || [];
-      var plans = results[1].data || [];
+      var notes = results[1].data || [];
       var swim = results[2].data || [];
       var allSchedules = results[3].data || [];
 
       var completedMemos = 0;
       for (var i = 0; i < memos.length; i++) { if (memos[i].completed) completedMemos++; }
 
-      var totalSub = 0, doneSub = 0;
-      for (var j = 0; j < plans.length; j++) {
-        var subs = plans[j].plan_subtasks || [];
-        totalSub += subs.length;
-        for (var k = 0; k < subs.length; k++) { if (subs[k].completed) doneSub++; }
-      }
-      var planProgress = totalSub ? Math.round(doneSub / totalSub * 100) : 0;
+      var noteCount = notes.length;
 
       var swimTotal = 0;
       for (var s = 0; s < swim.length; s++) { swimTotal += parseFloat(swim[s].duration) || 0; }
@@ -1125,8 +1113,8 @@ window.readLunarDate = function() {
             '<div class="text-[10px] md:text-sm text-[#8c7e75]">待办备忘</div>' +
           '</div>' +
           '<div class="card p-3 md:p-6 text-center">' +
-            '<div class="text-xl md:text-3xl font-bold text-[#b45309] mb-1">' + planProgress + '%</div>' +
-            '<div class="text-[10px] md:text-sm text-[#8c7e75]">未来计划进度</div>' +
+            '<div class="text-xl md:text-3xl font-bold text-[#b45309] mb-1">' + noteCount + '</div>' +
+            '<div class="text-[10px] md:text-sm text-[#8c7e75]">想法沉淀</div>' +
           '</div>' +
         '</div>' +
 
@@ -1148,8 +1136,8 @@ window.readLunarDate = function() {
             '<div class="text-xs md:text-sm text-[#8c7e75]">累计时长 · ' + swimTotal + ' 分钟（' + Math.floor(swimTotal / 60) + ' 小时）</div>' +
           '</div>' +
           '<div class="card p-4 md:p-5 cursor-pointer" onclick="switchView(\'plan\')">' +
-            '<div class="flex items-center gap-2 md:gap-3 mb-2"><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#ede9fe] flex items-center justify-center text-base md:text-lg">🚀</div><div class="font-bold text-base md:text-lg">未来计划</div></div>' +
-            '<div class="text-xs md:text-sm text-[#8c7e75]">进行中的计划 · ' + plans.length + ' 项</div>' +
+            '<div class="flex items-center gap-2 md:gap-3 mb-2"><div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#ede9fe] flex items-center justify-center text-base md:text-lg">💡</div><div class="font-bold text-base md:text-lg">想法沉淀</div></div>' +
+            '<div class="text-xs md:text-sm text-[#8c7e75]">灵感与思路 · ' + noteCount + ' 条</div>' +
           '</div>' +
         '</div>' +
 
@@ -2065,111 +2053,353 @@ window.readLunarDate = function() {
       render();
     }
 
-    // ==================== 未来计划 ====================
-    async function renderPlan(container) {
-      var result = await supabase
-        .from('plans')
-        .select('*, plan_subtasks(*)')
-        .eq('workspace_id', currentWorkspace.id)
-        .order('created_at', { ascending: false });
+    // ==================== 想法沉淀（原「未来计划」，参考苹果备忘录） ====================
+    var notesList = [];
+    var selectedNoteId = null;     // null = 新建中 / 未选中
+    var noteSearchTerm = '';
+    var noteDateFilter = '';       // YYYY-MM-DD，空表示不限
+    var noteMobileEditor = false;  // 移动端是否显示编辑器
+    var noteCanvas = null;
+    var noteDrawColor = '#1f2937';
+    var noteDrawSize = 3;
+    var noteDrawingDirty = false;  // 画布相对已保存内容是否有改动
+    var noteCanvasCleared = false; // 是否主动清空过
 
-      var plans = result.data || [];
-      var html = '';
+    function formatNoteTime(iso) {
+      if (!iso) return '';
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      var p = function (n) { return (n < 10 ? '0' : '') + n; };
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
 
-      html += '<div class="card p-4 md:p-5 mb-6"><div class="flex flex-col md:flex-row gap-2 md:gap-3">' +
-        '<input id="plan-title" type="text" placeholder="计划名称" class="flex-1 text-sm md:text-base" onkeydown="if(event.key===\'Enter\') addPlan()" />' +
-        '<input id="plan-desc" type="text" placeholder="描述（可选）" class="flex-1 text-sm md:text-base" onkeydown="if(event.key===\'Enter\') addPlan()" />' +
-        '<button class="btn-primary px-5 md:px-6 py-2 md:py-2.5 text-sm md:text-base" onclick="addPlan()">新建计划</button>' +
-      '</div></div>';
+    function findNoteById(id) {
+      for (var i = 0; i < notesList.length; i++) { if (notesList[i].id === id) return notesList[i]; }
+      return null;
+    }
 
-      html += '<div class="space-y-5">';
-      if (plans.length) {
-        for (var i = 0; i < plans.length; i++) {
-          var p = plans[i];
-          var subs = (p.plan_subtasks || []).sort(function(a, b) { return a.sort_order - b.sort_order; });
-          var total = subs.length;
-          var done = 0;
-          for (var s = 0; s < subs.length; s++) { if (subs[s].completed) done++; }
-          var pct = total ? Math.round(done / total * 100) : 0;
-
-          html += '<div class="card p-4 md:p-5">' +
-            '<div class="flex items-start justify-between mb-2 gap-2">' +
-              '<div class="min-w-0"><div class="font-bold text-base md:text-lg truncate">' + escapeHtml(p.title) + '</div>' +
-              '<div class="text-xs md:text-sm text-[#8c7e75] truncate">' + escapeHtml(p.description || '暂无描述') + '</div></div>' +
-              '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-xs md:text-sm border-none bg-transparent cursor-pointer flex-shrink-0" onclick="deletePlan(\'' + p.id + '\')">删除</button>' +
-            '</div>' +
-            '<div class="flex items-center gap-3 mb-4">' +
-              '<div class="progress-bar flex-1"><div class="progress-fill" style="width:' + pct + '%"></div></div>' +
-              '<div class="text-xs md:text-sm font-bold text-[#ff5c7f] w-10 md:w-12 text-right">' + pct + '%</div>' +
-            '</div>';
-
-          html += '<div class="space-y-2 mb-3">';
-          for (var u = 0; u < subs.length; u++) {
-            var sub = subs[u];
-            html += '<div class="flex items-center gap-2 md:gap-3 bg-[#fff8f6] rounded-xl px-3 py-2">' +
-              '<input type="checkbox" class="checkbox-pink" ' + (sub.completed ? 'checked' : '') + ' onchange="toggleSubtask(\'' + sub.id + '\', ' + sub.completed + ')">' +
-              '<span class="flex-1 text-xs md:text-sm ' + (sub.completed ? 'completed-line' : '') + '" style="min-width:0">' + escapeHtml(sub.title) + '</span>' +
-              '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-[10px] md:text-xs border-none bg-transparent cursor-pointer flex-shrink-0" onclick="deleteSubtask(\'' + sub.id + '\')">删除</button>' +
-            '</div>';
-          }
-          html += '</div>';
-
-          html += '<div class="flex flex-col md:flex-row gap-2">' +
-            '<input id="subtask-' + p.id + '" type="text" placeholder="添加子任务..." class="flex-1 text-xs md:text-sm" onkeydown="if(event.key===\'Enter\') addSubtask(\'' + p.id + '\')" />' +
-            '<button class="btn-soft px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm" onclick="addSubtask(\'' + p.id + '\')">添加</button>' +
-          '</div></div>';
-        }
-      } else {
-        html += '<div class="empty-state card">还没有未来计划，先定一个小目标吧~</div>';
+    function noteMatchesSearch(n) {
+      var term = noteSearchTerm.trim().toLowerCase();
+      var okText = true, okDate = true;
+      if (term) {
+        var hay = ((n.title || '') + ' ' + (n.body || '')).toLowerCase();
+        okText = hay.indexOf(term) !== -1;
       }
+      if (noteDateFilter) {
+        okDate = (n.created_at || '').indexOf(noteDateFilter) === 0;
+      }
+      return okText && okDate;
+    }
+
+    async function renderNote(container) {
+      var result = await supabase
+        .from('notes')
+        .select('*')
+        .eq('workspace_id', currentWorkspace.id)
+        .order('updated_at', { ascending: false });
+
+      if (result.error) { toast(result.error.message, 'error'); notesList = []; }
+      else { notesList = result.data || []; }
+
+      var listCls = noteMobileEditor ? 'hidden md:flex' : 'flex';
+      var editorCls = noteMobileEditor ? 'flex' : 'hidden md:flex';
+
+      var html = '';
+      html += '<div class="flex flex-col md:flex-row gap-4 md:gap-5 h-full">';
+
+      // 左：搜索 + 列表
+      html += '<div class="' + listCls + ' flex-col w-full md:w-[340px] md:flex-shrink-0">';
+      html += '<div class="flex items-center gap-2 mb-3">';
+      html += '<div class="relative flex-1"><input id="note-search" type="text" placeholder="搜索主题、内容或时间…" class="w-full text-sm pl-9 pr-3 py-2 rounded-xl border border-[#eadfd7] bg-white" value="' + escapeHtml(noteSearchTerm) + '" oninput="onNoteSearchInput(this.value)" />' +
+        '<span class="absolute left-3 top-1/2 -translate-y-1/2 text-[#b6a99f] text-sm">🔍</span></div>';
+      html += '<input id="note-date" type="date" class="text-sm px-2 py-2 rounded-xl border border-[#eadfd7] bg-white" value="' + escapeHtml(noteDateFilter) + '" onchange="onNoteDateFilter(this.value)" title="按创建日期筛选" />';
+      html += '</div>';
+      html += '<button class="btn-primary w-full py-2.5 text-sm mb-3" onclick="newNote()">+ 新建想法</button>';
+      html += '<div id="note-list" class="flex-1 space-y-2 overflow-y-auto md:max-h-[calc(100vh-220px)]">';
+      html += renderNotesListInner();
+      html += '</div></div>';
+
+      // 右：编辑器
+      html += '<div class="' + editorCls + ' flex-col flex-1 min-w-0">';
+      html += '<div id="note-editor"></div>';
       html += '</div>';
 
+      html += '</div>';
       container.innerHTML = html;
+
+      renderNotesEditorInner();
     }
 
-    async function addPlan() {
-      var title = document.getElementById('plan-title').value.trim();
-      var desc = document.getElementById('plan-desc').value.trim();
-      if (!title) return;
+    function renderNotesListInner() {
+      var filtered = [];
+      for (var i = 0; i < notesList.length; i++) { if (noteMatchesSearch(notesList[i])) filtered.push(notesList[i]); }
+      if (!filtered.length) {
+        return '<div class="empty-state card text-center">' + (notesList.length ? '没有匹配的记录' : '还没有想法，点上方「+ 新建想法」开始记录吧~') + '</div>';
+      }
+      var html = '';
+      for (var j = 0; j < filtered.length; j++) {
+        var n = filtered[j];
+        var active = (n.id === selectedNoteId) ? ' border-[#ff8fa3] bg-[#fff4f7]' : ' border-transparent hover:bg-[#fbf6f2]';
+        var preview = (n.body || '').replace(/\n/g, ' ').slice(0, 40) || '（无内容）';
+        var title = n.title || '无标题';
+        html += '<div class="card p-3 cursor-pointer border ' + active + '" onclick="openNote(\'' + n.id + '\')">' +
+          '<div class="font-medium text-sm md:text-base truncate">' + escapeHtml(title) + '</div>' +
+          '<div class="text-xs text-[#8c7e75] truncate mt-0.5">' + escapeHtml(preview) + '</div>' +
+          '<div class="text-[10px] text-[#a99e94] mt-1">' + formatNoteTime(n.created_at) + (n.drawing ? ' · 🎨' : '') + '</div>' +
+        '</div>';
+      }
+      return html;
+    }
 
-      await supabase.from('plans').insert({
+    function refreshNotesList() {
+      var el = document.getElementById('note-list');
+      if (el) el.innerHTML = renderNotesListInner();
+    }
+
+    function onNoteSearchInput(v) { noteSearchTerm = v; refreshNotesList(); }
+    function onNoteDateFilter(v) { noteDateFilter = v; refreshNotesList(); }
+
+    async function openNote(id) {
+      await saveNoteSilent();
+      selectedNoteId = id;
+      noteMobileEditor = true;
+      renderNote(document.getElementById('view-container'));
+    }
+
+    async function newNote() {
+      await saveNoteSilent();
+      selectedNoteId = null;
+      noteSearchTerm = ''; noteDateFilter = '';
+      noteMobileEditor = true;
+      renderNote(document.getElementById('view-container'));
+      setTimeout(function () { var t = document.getElementById('note-title'); if (t) t.focus(); }, 60);
+    }
+
+    async function backToNotesList() {
+      await saveNoteSilent();
+      noteMobileEditor = false;
+      renderNote(document.getElementById('view-container'));
+    }
+
+    function renderNotesEditorInner() {
+      var el = document.getElementById('note-editor');
+      if (!el) return;
+      var n = selectedNoteId ? findNoteById(selectedNoteId) : null;
+      var isNew = !n;
+      var title = n ? (n.title || '') : '';
+      var body = n ? (n.body || '') : '';
+      var created = n ? n.created_at : null;
+      var updated = n ? n.updated_at : null;
+      noteDrawingDirty = false;
+      noteCanvasCleared = false;
+
+      var html = '';
+      html += '<div class="flex items-center justify-between mb-3 gap-2">';
+      html += '<button class="md:hidden btn-soft px-3 py-1.5 text-sm" onclick="backToNotesList()">← 返回</button>';
+      html += '<div class="flex-1"></div>';
+      html += '<button class="text-[#8c7e75] hover:text-[#ff5c7f] text-sm border-none bg-transparent cursor-pointer" onclick="deleteNote()">🗑 删除</button>';
+      html += '<button class="btn-primary px-5 py-2 text-sm ml-2" onclick="saveNote()">保存</button>';
+      html += '</div>';
+
+      html += '<input id="note-title" type="text" placeholder="主题（必填）" class="w-full text-lg md:text-xl font-bold mb-1 px-1 py-1 border-none bg-transparent focus:outline-none" value="' + escapeHtml(title) + '" />';
+      var timeLine = created ? ('创建于 ' + formatNoteTime(created) + (updated ? (' · 更新于 ' + formatNoteTime(updated)) : '')) : '新建想法（还未保存）';
+      html += '<div class="text-xs text-[#a99e94] mb-3 px-1">' + timeLine + '</div>';
+
+      html += '<textarea id="note-body" placeholder="写点什么…（灵感、小思路、待办碎碎念）" class="w-full h-40 md:h-48 text-sm md:text-base px-3 py-2 rounded-xl border border-[#eadfd7] bg-white resize-y mb-4" oninput="onNoteBodyInput()">' + escapeHtml(body) + '</textarea>';
+
+      // 手绘工具条
+      html += '<div class="mb-2 flex items-center gap-2 flex-wrap">';
+      html += '<span class="text-sm text-[#8c7e75]">手绘：</span>';
+      var colors = ['#1f2937', '#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'];
+      for (var c = 0; c < colors.length; c++) {
+        var ring = (colors[c] === noteDrawColor) ? ' ring-2 ring-[#ff8fa3]' : '';
+        html += '<button type="button" class="note-pen-btn w-6 h-6 rounded-full border border-[#ddd]' + ring + '" style="background:' + colors[c] + '" data-color="' + colors[c] + '" onclick="setNotePen(\'' + colors[c] + '\')"></button>';
+      }
+      html += '<span class="mx-1 text-[#ccc]">|</span>';
+      html += '<button type="button" id="note-eraser-btn" class="text-xs px-2 py-1 rounded-lg border border-[#eadfd7] bg-white' + (noteDrawColor === 'eraser' ? ' bg-[#ffe4ec]' : '') + '" onclick="setNotePen(\'eraser\')">橡皮</button>';
+      html += '<button type="button" class="text-xs px-2 py-1 rounded-lg border border-[#eadfd7] bg-white" onclick="setNotePenSize(2)">细</button>';
+      html += '<button type="button" class="text-xs px-2 py-1 rounded-lg border border-[#eadfd7] bg-white" onclick="setNotePenSize(5)">粗</button>';
+      html += '<button type="button" class="text-xs px-2 py-1 rounded-lg border border-[#eadfd7] bg-white" onclick="clearNoteCanvas()">清空</button>';
+      html += '</div>';
+      html += '<canvas id="note-canvas" width="800" height="420" class="w-full rounded-xl border border-[#eadfd7] bg-white" style="touch-action:none;max-height:360px;"></canvas>';
+      html += '<div id="note-saved-hint" class="text-xs text-[#10b981] mt-2 h-4"></div>';
+
+      el.innerHTML = html;
+
+      noteCanvas = document.getElementById('note-canvas');
+      setupNoteCanvas();
+      var ctx0 = noteCanvas.getContext('2d');
+      ctx0.fillStyle = '#ffffff';
+      ctx0.fillRect(0, 0, noteCanvas.width, noteCanvas.height);
+      if (n && n.drawing) loadDrawingToCanvas(n.drawing);
+    }
+
+    function setNotePen(color) {
+      noteDrawColor = color;
+      var btns = document.querySelectorAll('.note-pen-btn');
+      for (var i = 0; i < btns.length; i++) {
+        var b = btns[i];
+        if (b.getAttribute('data-color') === color) b.classList.add('ring-2', 'ring-[#ff8fa3]');
+        else b.classList.remove('ring-2', 'ring-[#ff8fa3]');
+      }
+      var eraser = document.getElementById('note-eraser-btn');
+      if (eraser) eraser.classList.toggle('bg-[#ffe4ec]', color === 'eraser');
+    }
+
+    function setNotePenSize(s) { noteDrawSize = s; }
+
+    function clearNoteCanvas() {
+      if (!noteCanvas) return;
+      var ctx = noteCanvas.getContext('2d');
+      ctx.clearRect(0, 0, noteCanvas.width, noteCanvas.height);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, noteCanvas.width, noteCanvas.height);
+      noteDrawingDirty = true;
+      noteCanvasCleared = true;
+    }
+
+    function loadDrawingToCanvas(dataUrl) {
+      var img = new Image();
+      img.onload = function () {
+        if (!noteCanvas) return;
+        var ctx = noteCanvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, noteCanvas.width, noteCanvas.height);
+      };
+      img.src = dataUrl;
+    }
+
+    function setupNoteCanvas() {
+      if (!noteCanvas) return;
+      var drawing = false;
+      var lastX = 0, lastY = 0;
+      function pos(e) {
+        var rect = noteCanvas.getBoundingClientRect();
+        var scaleX = noteCanvas.width / rect.width;
+        var scaleY = noteCanvas.height / rect.height;
+        return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+      }
+      noteCanvas.onpointerdown = function (e) {
+        e.preventDefault();
+        try { noteCanvas.setPointerCapture(e.pointerId); } catch (err) {}
+        drawing = true;
+        var p = pos(e);
+        lastX = p.x; lastY = p.y;
+        var ctx = noteCanvas.getContext('2d');
+        ctx.fillStyle = (noteDrawColor === 'eraser') ? '#ffffff' : noteDrawColor;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, noteDrawSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+        noteDrawingDirty = true;
+      };
+      noteCanvas.onpointermove = function (e) {
+        if (!drawing) return;
+        e.preventDefault();
+        var p = pos(e);
+        var ctx = noteCanvas.getContext('2d');
+        ctx.strokeStyle = (noteDrawColor === 'eraser') ? '#ffffff' : noteDrawColor;
+        ctx.lineWidth = noteDrawSize;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        lastX = p.x; lastY = p.y;
+        noteDrawingDirty = true;
+      };
+      noteCanvas.onpointerup = function () { drawing = false; };
+      noteCanvas.onpointerleave = function () { drawing = false; };
+    }
+
+    function onNoteBodyInput() {
+      var h = document.getElementById('note-saved-hint');
+      if (h) h.textContent = '';
+    }
+
+    async function saveNote() {
+      var titleEl = document.getElementById('note-title');
+      var bodyEl = document.getElementById('note-body');
+      if (!titleEl) return;
+      var title = titleEl.value.trim();
+      var body = bodyEl ? bodyEl.value : '';
+      if (!title) { toast('请填写主题', 'error'); titleEl.focus(); return; }
+
+      var payload = {
         workspace_id: currentWorkspace.id,
         title: title,
-        description: desc,
-        created_by: currentUser.id
-      });
-      render();
+        body: body,
+        updated_at: new Date().toISOString()
+      };
+      if (noteCanvasCleared) payload.drawing = null;
+      else if (noteDrawingDirty && noteCanvas) payload.drawing = noteCanvas.toDataURL('image/png');
+
+      var res;
+      if (selectedNoteId) {
+        res = await supabase.from('notes').update(payload).eq('id', selectedNoteId);
+      } else {
+        payload.created_by = currentUser.id;
+        payload.created_at = new Date().toISOString();
+        res = await supabase.from('notes').insert(payload).select();
+        if (res.data && res.data.length) {
+          selectedNoteId = res.data[0].id;
+          notesList.unshift(res.data[0]);
+        }
+      }
+      if (res.error) { toast(res.error.message, 'error'); return; }
+      noteDrawingDirty = false;
+      noteCanvasCleared = false;
+
+      if (selectedNoteId) {
+        var cur = findNoteById(selectedNoteId);
+        if (cur) { cur.title = title; cur.body = body; if ('drawing' in payload) cur.drawing = payload.drawing; cur.updated_at = payload.updated_at; }
+      }
+      refreshNotesList();
+      var hint = document.getElementById('note-saved-hint');
+      if (hint) hint.textContent = '已保存 ✓ ' + formatNoteTime(new Date().toISOString());
+      toast('已保存', 'success');
     }
 
-    async function deletePlan(id) {
-      await supabase.from('plans').delete().eq('id', id);
-      render();
+    async function saveNoteSilent() {
+      var titleEl = document.getElementById('note-title');
+      if (!titleEl) return;
+      var title = titleEl.value.trim();
+      if (!title) {
+        if (!selectedNoteId) return;       // 全新空白草稿，不保存
+        return;                            // 已有笔记被清空主题，跳过以免覆盖
+      }
+      var bodyEl = document.getElementById('note-body');
+      var body = bodyEl ? bodyEl.value : '';
+      var payload = { title: title, body: body, updated_at: new Date().toISOString() };
+      if (noteCanvasCleared) payload.drawing = null;
+      else if (noteDrawingDirty && noteCanvas) payload.drawing = noteCanvas.toDataURL('image/png');
+
+      if (selectedNoteId) {
+        await supabase.from('notes').update(payload).eq('id', selectedNoteId);
+        var cur = findNoteById(selectedNoteId);
+        if (cur) { cur.title = title; cur.body = body; if ('drawing' in payload) cur.drawing = payload.drawing; cur.updated_at = payload.updated_at; }
+      } else {
+        payload.workspace_id = currentWorkspace.id;
+        payload.created_by = currentUser.id;
+        payload.created_at = new Date().toISOString();
+        var r = await supabase.from('notes').insert(payload).select();
+        if (r.data && r.data.length) {
+          selectedNoteId = r.data[0].id;
+          notesList.unshift(r.data[0]);
+        }
+      }
+      noteDrawingDirty = false;
+      noteCanvasCleared = false;
     }
 
-    async function addSubtask(planId) {
-      var input = document.getElementById('subtask-' + planId);
-      if (!input) return;
-      var title = input.value.trim();
-      if (!title) return;
-
-      var existing = await supabase.from('plan_subtasks').select('sort_order').eq('plan_id', planId).order('sort_order', { ascending: false }).limit(1);
-      var nextOrder = (existing.data && existing.data.length ? existing.data[0].sort_order : 0) + 1;
-
-      await supabase.from('plan_subtasks').insert({
-        plan_id: planId,
-        title: title,
-        sort_order: nextOrder
-      });
-      render();
-    }
-
-    async function toggleSubtask(id, currentCompleted) {
-      await supabase.from('plan_subtasks').update({ completed: !currentCompleted }).eq('id', id);
-      render();
-    }
-
-    async function deleteSubtask(id) {
-      await supabase.from('plan_subtasks').delete().eq('id', id);
+    async function deleteNote() {
+      if (!selectedNoteId) { toast('没有可删除的笔记', 'info'); return; }
+      if (!window.confirm('确定删除这条想法吗？此操作不可恢复。')) return;
+      var r = await supabase.from('notes').delete().eq('id', selectedNoteId);
+      if (r.error) { toast(r.error.message, 'error'); return; }
+      selectedNoteId = null;
+      noteMobileEditor = false;
+      noteDrawingDirty = false;
+      noteCanvasCleared = false;
       render();
     }
 // ==================== 收藏 ====================
